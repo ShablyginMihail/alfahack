@@ -9,7 +9,7 @@ services:
     build: .
     env_file: .env
     ports:
-      - "8000:8000"
+      - "${PII_PORT:-8000}:8000"
     environment:
       PII_REDIS_URL: redis://redis:6379/0
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
