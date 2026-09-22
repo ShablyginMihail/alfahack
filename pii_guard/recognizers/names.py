@@ -254,12 +254,33 @@ PATTERNS: tuple[tuple[tuple[str, ...], float], ...] = (
     (("NAME", "SURN"), 0.8),
 )
 
-_LATIN_WORD = r"[a-z]{2,}(?:['-][a-z]{2,})*"
-LATIN_NAME_RE = re.compile(
-    rf"(?<!\w)({_LATIN_WORD})\s+({_LATIN_WORD})(?:\s+({_LATIN_WORD}))?(?!\w)"
-)
+_LATIN_WORD_RE = re.compile(r"(?<!\w)[a-z]{2,}(?:['-][a-z]{2,})*(?!\w)")
 CARD_NUMBER_RE = re.compile(r"(?<!\d)(?:\d[\s-]?){12,18}\d(?!\d)")
 _LATIN_SURN_END = re.compile(r"(?:ov|ev|in|ova|eva|ina|sky|skaya)$")
+
+
+def _latin_name_runs(text: str) -> list[tuple[int, int, list[str]]]:
+    runs: list[tuple[int, int, list[str]]] = []
+    chain: list[tuple[int, int, str]] = []
+
+    def flush() -> None:
+        i = 0
+        while i < len(chain):
+            size = 3 if len(chain) - i >= 3 else len(chain) - i
+            if size < 2:
+                break
+            piece = chain[i : i + size]
+            runs.append((piece[0][0], piece[-1][1], [w[2] for w in piece]))
+            i += size
+
+    for match in _LATIN_WORD_RE.finditer(text):
+        if chain and not text[chain[-1][1] : match.start()].isspace():
+            flush()
+            chain = []
+        chain.append((match.start(), match.end(), match.group(0)))
+    flush()
+    return runs
+
 
 CARDHOLDER_CONTEXT = compile_keywords(
     [
@@ -659,14 +680,13 @@ class NameRecognizer(Recognizer):
 
     def _latin_names(self, doc: Document) -> list[Span]:
         spans: list[Span] = []
-        for match in LATIN_NAME_RE.finditer(doc.norm):
-            words = [w for w in match.groups() if w]
+        for start, end, words in _latin_name_runs(doc.norm):
             if any(w in LATIN_STOP_WORDS for w in words):
                 continue
-            if self._has_cardholder_context(doc, match.start(), match.end()):
-                spans.append(Span(match.start(), match.end(), "CARDHOLDER", 0.85, self.name))
+            if self._has_cardholder_context(doc, start, end):
+                spans.append(Span(start, end, "CARDHOLDER", 0.85, self.name))
             elif self._is_latin_person(words):
-                spans.append(Span(match.start(), match.end(), "PERSON", 0.7, self.name))
+                spans.append(Span(start, end, "PERSON", 0.7, self.name))
         return spans
 
     def _has_cardholder_context(self, doc: Document, start: int, end: int) -> bool:
