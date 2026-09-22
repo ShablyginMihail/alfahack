@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import random
 from pathlib import Path
+from typing import ClassVar
 
 MALE_NAMES = [
     "иван",
@@ -235,6 +236,14 @@ TRAP_TEMPLATES = [
 ]
 
 
+BIRTH_REGIONS = (
+    "Московская обл.",
+    "Краснодарский край",
+    "Республика Татарстан",
+    "Свердловская область",
+)
+
+
 class Generator:
     def __init__(self, seed: int) -> None:
         self.rng = random.Random(seed)
@@ -274,42 +283,31 @@ class Generator:
             return text.title()
         return text
 
+    _PHRASE_METHODS: ClassVar[dict[str, str]] = {
+        "PERSON": "_person_phrase",
+        "BIRTH_DATE": "_birth_date_phrase",
+        "BIRTH_PLACE": "_birth_place_phrase",
+        "PASSPORT": "_passport_phrase",
+        "CITIZENSHIP": "_citizenship_phrase",
+        "PASSPORT_ISSUER": "_issuer_phrase",
+        "DIVISION_CODE": "_division_code_phrase",
+        "PASSPORT_ISSUE_DATE": "_issue_date_phrase",
+        "DRIVER_LICENSE": "_driver_phrase",
+        "ADDRESS": "_address_phrase",
+        "EMAIL": "_email_phrase",
+        "PHONE": "_phone_phrase",
+        "INN": "_inn_phrase",
+        "CARD_NUMBER": "_card_phrase",
+        "CVV": "_cvv_phrase",
+        "PIN": "_pin_phrase",
+        "CARDHOLDER": "_cardholder_phrase",
+    }
+
     def _phrase_for_type(self, pii_type: str) -> list[tuple[str, str | None]]:
-        if pii_type == "PERSON":
-            return self._person_phrase()
-        if pii_type == "BIRTH_DATE":
-            return self._birth_date_phrase()
-        if pii_type == "BIRTH_PLACE":
-            return self._birth_place_phrase()
-        if pii_type == "PASSPORT":
-            return self._passport_phrase()
-        if pii_type == "CITIZENSHIP":
-            return self._citizenship_phrase()
-        if pii_type == "PASSPORT_ISSUER":
-            return self._issuer_phrase()
-        if pii_type == "DIVISION_CODE":
-            return self._division_code_phrase()
-        if pii_type == "PASSPORT_ISSUE_DATE":
-            return self._issue_date_phrase()
-        if pii_type == "DRIVER_LICENSE":
-            return self._driver_phrase()
-        if pii_type == "ADDRESS":
-            return self._address_phrase()
-        if pii_type == "EMAIL":
-            return self._email_phrase()
-        if pii_type == "PHONE":
-            return self._phone_phrase()
-        if pii_type == "INN":
-            return self._inn_phrase()
-        if pii_type == "CARD_NUMBER":
-            return self._card_phrase()
-        if pii_type == "CVV":
-            return self._cvv_phrase()
-        if pii_type == "PIN":
-            return self._pin_phrase()
-        if pii_type == "CARDHOLDER":
-            return self._cardholder_phrase()
-        return []
+        method = self._PHRASE_METHODS.get(pii_type)
+        if method is None:
+            return []
+        return getattr(self, method)()
 
     def _person_phrase(self) -> list[tuple[str, str | None]]:
         person = self._person()
@@ -332,10 +330,10 @@ class Generator:
         date = self._birth_date()
         templates = [
             [("Дата рождения ", None), (date, "BIRTH_DATE")],
-            [("Родился ", None), (date, "BIRTH_DATE")],
+            [("Родился ", None), (date, "BIRTH_DATE"), (" года", None)],
             [(date, "BIRTH_DATE"), (" день рождения", None)],
             [("Родилась ", None), (date, "BIRTH_DATE"), (" года", None)],
-            [("Дата рождения: ", None), (date, "BIRTH_DATE")],
+            [("Дата рождения: ", None), (date, "BIRTH_DATE"), (" года", None)],
         ]
         return self.rng.choice(templates)
 
@@ -345,7 +343,7 @@ class Generator:
             [("Место рождения: г. ", None), (place, "BIRTH_PLACE")],
             [("Уроженец ", None), (place, "BIRTH_PLACE")],
             [("Родился в ", None), (place, "BIRTH_PLACE")],
-            [("Место рождения — ", None), (self.rng.choice(REGIONS), "BIRTH_PLACE")],
+            [("Место рождения — ", None), (self.rng.choice(BIRTH_REGIONS), "BIRTH_PLACE")],
         ]
         return self.rng.choice(templates)
 
@@ -419,13 +417,26 @@ class Generator:
                 (f"{series.replace(' ', '')} {number}", "DRIVER_LICENSE"),
             ],
             [
-                ("Серия ", None),
+                ("Водительское удостоверение: серия ", None),
                 (series, "DRIVER_LICENSE"),
                 (" номер ", None),
                 (number, "DRIVER_LICENSE"),
             ],
         ]
         return self.rng.choice(templates)
+
+    def _region_segments(self, pii_type: str = "ADDRESS") -> list[tuple[str, str | None]]:
+        kind = self.rng.choice(["obl", "krai", "resp"])
+        if kind == "obl":
+            name = self.rng.choice(["Московской", "Ленинградской", "Свердловской", "Новосибирской"])
+            return [(name, pii_type), (" обл.", None)]
+        if kind == "krai":
+            name = self.rng.choice(
+                ["Краснодарский", "Красноярский", "Приморский", "Ставропольский"]
+            )
+            return [(name, pii_type), (" край", None)]
+        name = self.rng.choice(["Татарстан", "Башкортостан", "Дагестан", "Чувашия"])
+        return [("республике ", None), (name, pii_type)]
 
     def _address_phrase(self) -> list[tuple[str, str | None]]:
         index = f"{self.rng.randint(1, 6)}{self.rng.randint(10000, 99999)}"
@@ -448,7 +459,7 @@ class Generator:
             ],
             [
                 ("Проживает по адресу ", None),
-                (self.rng.choice(REGIONS), "ADDRESS"),
+                *self._region_segments(),
                 (", г. ", None),
                 (city, "ADDRESS"),
                 (", ул. ", None),
@@ -553,64 +564,104 @@ class Generator:
             segments.extend(self._value_segments(pii_type))
         return segments
 
+    _VALUE_METHODS: ClassVar[dict[str, str]] = {
+        "PERSON": "_value_person",
+        "BIRTH_DATE": "_value_birth_date",
+        "BIRTH_PLACE": "_value_birth_place",
+        "PASSPORT": "_value_passport",
+        "CITIZENSHIP": "_value_citizenship",
+        "PASSPORT_ISSUER": "_value_issuer",
+        "DIVISION_CODE": "_value_division_code",
+        "PASSPORT_ISSUE_DATE": "_value_issue_date",
+        "DRIVER_LICENSE": "_value_driver",
+        "ADDRESS": "_value_address",
+        "EMAIL": "_value_email",
+        "PHONE": "_value_phone",
+        "INN": "_value_inn",
+        "CARD_NUMBER": "_value_card",
+        "CVV": "_value_cvv",
+        "PIN": "_value_pin",
+        "CARDHOLDER": "_value_cardholder",
+    }
+
     def _value_segments(self, pii_type: str) -> list[tuple[str, str | None]]:
-        if pii_type == "PERSON":
-            return [("Клиент ", None), (self._person(), "PERSON")]
-        if pii_type == "BIRTH_DATE":
-            return [("дата рождения ", None), (self._birth_date(), "BIRTH_DATE")]
-        if pii_type == "BIRTH_PLACE":
-            return [("место рождения г. ", None), (self.rng.choice(CITIES), "BIRTH_PLACE")]
-        if pii_type == "PASSPORT":
-            return [("паспорт ", None), (self._passport_value(), "PASSPORT")]
-        if pii_type == "CITIZENSHIP":
-            return [("гражданство ", None), (self.rng.choice(COUNTRIES), "CITIZENSHIP")]
-        if pii_type == "PASSPORT_ISSUER":
-            return [
-                ("выдан ", None),
-                (f"ОУФМС России по г. {self.rng.choice(CITIES)}", "PASSPORT_ISSUER"),
-            ]
-        if pii_type == "DIVISION_CODE":
-            return [
-                ("код подразделения ", None),
-                (f"{self.rng.randint(100, 999)}-{self.rng.randint(100, 999)}", "DIVISION_CODE"),
-            ]
-        if pii_type == "PASSPORT_ISSUE_DATE":
-            return [("дата выдачи ", None), (self._birth_date(), "PASSPORT_ISSUE_DATE")]
-        if pii_type == "DRIVER_LICENSE":
-            return [
-                ("ВУ ", None),
-                (
-                    f"{self.rng.randint(10, 99)} {self.rng.choice(['ав', 'вс'])} "
-                    f"{self.rng.randint(100000, 999999)}",
-                    "DRIVER_LICENSE",
-                ),
-            ]
-        if pii_type == "ADDRESS":
-            return [("адрес г. ", None), (self.rng.choice(CITIES), "ADDRESS")]
-        if pii_type == "EMAIL":
-            return [
-                ("email ", None),
-                (f"{self.rng.choice(MALE_NAMES)}@{self.rng.choice(EMAIL_DOMAINS)}", "EMAIL"),
-            ]
-        if pii_type == "PHONE":
-            return [("телефон ", None), (self._phone(), "PHONE")]
-        if pii_type == "INN":
-            return [("ИНН ", None), (self._inn(), "INN")]
-        if pii_type == "CARD_NUMBER":
-            return [("карта ", None), (self._card(), "CARD_NUMBER")]
-        if pii_type == "CVV":
-            return [("CVV ", None), (f"{self.rng.randint(100, 999)}", "CVV")]
-        if pii_type == "PIN":
-            return [("ПИН ", None), (f"{self.rng.randint(1000, 9999)}", "PIN")]
-        if pii_type == "CARDHOLDER":
-            return [
-                ("держатель ", None),
-                (
-                    f"{self.rng.choice(['IVAN', 'PETR'])} {self.rng.choice(['IVANOV', 'PETROV'])}",
-                    "CARDHOLDER",
-                ),
-            ]
-        return []
+        method = self._VALUE_METHODS.get(pii_type)
+        if method is None:
+            return []
+        return getattr(self, method)()
+
+    def _value_person(self) -> list[tuple[str, str | None]]:
+        return [("Клиент ", None), (self._person(), "PERSON")]
+
+    def _value_birth_date(self) -> list[tuple[str, str | None]]:
+        return [("дата рождения ", None), (self._birth_date(), "BIRTH_DATE")]
+
+    def _value_birth_place(self) -> list[tuple[str, str | None]]:
+        return [("место рождения г. ", None), (self.rng.choice(CITIES), "BIRTH_PLACE")]
+
+    def _value_passport(self) -> list[tuple[str, str | None]]:
+        return [("паспорт ", None), (self._passport_value(), "PASSPORT")]
+
+    def _value_citizenship(self) -> list[tuple[str, str | None]]:
+        return [("гражданство ", None), (self.rng.choice(COUNTRIES), "CITIZENSHIP")]
+
+    def _value_issuer(self) -> list[tuple[str, str | None]]:
+        return [
+            ("выдан ", None),
+            (f"ОУФМС России по г. {self.rng.choice(CITIES)}", "PASSPORT_ISSUER"),
+        ]
+
+    def _value_division_code(self) -> list[tuple[str, str | None]]:
+        return [
+            ("код подразделения ", None),
+            (f"{self.rng.randint(100, 999)}-{self.rng.randint(100, 999)}", "DIVISION_CODE"),
+        ]
+
+    def _value_issue_date(self) -> list[tuple[str, str | None]]:
+        return [("дата выдачи ", None), (self._birth_date(), "PASSPORT_ISSUE_DATE")]
+
+    def _value_driver(self) -> list[tuple[str, str | None]]:
+        return [
+            ("ВУ ", None),
+            (
+                f"{self.rng.randint(10, 99)} {self.rng.choice(['ав', 'вс'])} "
+                f"{self.rng.randint(100000, 999999)}",
+                "DRIVER_LICENSE",
+            ),
+        ]
+
+    def _value_address(self) -> list[tuple[str, str | None]]:
+        return [("адрес г. ", None), (self.rng.choice(CITIES), "ADDRESS")]
+
+    def _value_email(self) -> list[tuple[str, str | None]]:
+        return [
+            ("email ", None),
+            (f"{self.rng.choice(MALE_NAMES)}@{self.rng.choice(EMAIL_DOMAINS)}", "EMAIL"),
+        ]
+
+    def _value_phone(self) -> list[tuple[str, str | None]]:
+        return [("телефон ", None), (self._phone(), "PHONE")]
+
+    def _value_inn(self) -> list[tuple[str, str | None]]:
+        return [("ИНН ", None), (self._inn(), "INN")]
+
+    def _value_card(self) -> list[tuple[str, str | None]]:
+        return [("карта ", None), (self._card(), "CARD_NUMBER")]
+
+    def _value_cvv(self) -> list[tuple[str, str | None]]:
+        return [("CVV ", None), (f"{self.rng.randint(100, 999)}", "CVV")]
+
+    def _value_pin(self) -> list[tuple[str, str | None]]:
+        return [("ПИН ", None), (f"{self.rng.randint(1000, 9999)}", "PIN")]
+
+    def _value_cardholder(self) -> list[tuple[str, str | None]]:
+        return [
+            ("держатель ", None),
+            (
+                f"{self.rng.choice(['IVAN', 'PETR'])} {self.rng.choice(['IVANOV', 'PETROV'])}",
+                "CARDHOLDER",
+            ),
+        ]
 
     def _trap_phrase(self) -> list[tuple[str, str | None]]:
         template = self.rng.choice(TRAP_TEMPLATES)
@@ -679,7 +730,7 @@ class Generator:
         w11 = (7, 2, 4, 10, 3, 5, 9, 4, 6, 8)
         w12 = (3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8)
         c11 = sum(base[i] * w11[i] for i in range(10)) % 11 % 10
-        c12 = sum((base + [c11])[i] * w12[i] for i in range(11)) % 11 % 10
+        c12 = sum(([*base, c11])[i] * w12[i] for i in range(11)) % 11 % 10
         return "".join(str(d) for d in base) + str(c11) + str(c12)
 
     def _card(self) -> str:
