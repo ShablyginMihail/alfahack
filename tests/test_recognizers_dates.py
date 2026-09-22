@@ -6,6 +6,8 @@ from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
 from tests.helpers import PARTIAL_PROFILE
 
+GODA_SUFFIX = " года"
+
 
 def _engine() -> Engine:
     registry = RecognizerRegistry.from_modules(Settings().recognizer_modules)
@@ -77,28 +79,28 @@ def test_birth_date_month_year() -> None:
 def test_birth_date_words() -> None:
     text = "дата рождения: двенадцатого марта тысяча девятьсот восемьдесят пятого года"
     result = _mask(text)
-    assert result.endswith(" года")
+    assert result.endswith(GODA_SUFFIX)
     assert "двенадцатого" not in result
 
 
 def test_birth_date_words_two_thousand() -> None:
     text = "дата рождения: первое января двухтысячного года"
     result = _mask(text)
-    assert result.endswith(" года")
+    assert result.endswith(GODA_SUFFIX)
     assert "января" not in result
 
 
 def test_birth_date_words_two_thousand_five() -> None:
     text = "родился пятого мая две тысячи пятого года"
     result = _mask(text)
-    assert result.endswith(" года")
+    assert result.endswith(GODA_SUFFIX)
     assert "мая" not in result
 
 
 def test_birth_date_words_ninety() -> None:
     text = "дата рождения: третьего июня тысяча девятьсот девяностого года"
     result = _mask(text)
-    assert result.endswith(" года")
+    assert result.endswith(GODA_SUFFIX)
     assert "июня" not in result
 
 

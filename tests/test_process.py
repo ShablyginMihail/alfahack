@@ -16,6 +16,10 @@ from pii_guard.store.crypto import RecordCipher, decode_key
 from pii_guard.store.redis_store import RedisStore
 from tests.helpers import make_settings, write_config
 
+PROCESS_PATH = "/process"
+EMAIL = "ivanov@mail.ru"
+EMAIL_TEXT = "email ivanov@mail.ru"
+
 
 def _settings(tmp_path) -> Settings:
     return make_settings(tmp_path)
@@ -55,13 +59,13 @@ async def test_mask_then_unmask_roundtrip(tmp_path) -> None:
     app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "Клиент Иванов Иван, email ivanov@mail.ru, паспорт 4509 123456"
-        resp = await client.post("/process", json={"payload": text, "payload_id": "id-1"})
+        resp = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-1"})
         assert resp.status_code == 200
         masked = resp.json()["result"]
-        assert "ivanov@mail.ru" not in masked
+        assert EMAIL not in masked
         assert "4509 123456" not in masked
 
-        resp2 = await client.post("/process", json={"payload": masked, "payload_id": "id-1"})
+        resp2 = await client.post(PROCESS_PATH, json={"payload": masked, "payload_id": "id-1"})
         assert resp2.status_code == 200
         assert resp2.json()["result"] == text
 
@@ -70,9 +74,9 @@ async def test_mask_then_unmask_roundtrip(tmp_path) -> None:
 async def test_mask_retry_same_mask(tmp_path) -> None:
     app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
-        text = "email ivanov@mail.ru"
-        r1 = await client.post("/process", json={"payload": text, "payload_id": "id-2"})
-        r2 = await client.post("/process", json={"payload": text, "payload_id": "id-2"})
+        text = EMAIL_TEXT
+        r1 = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-2"})
+        r2 = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-2"})
         assert r1.json()["result"] == r2.json()["result"]
 
 
@@ -80,11 +84,11 @@ async def test_mask_retry_same_mask(tmp_path) -> None:
 async def test_unmask_retry_returns_original(tmp_path) -> None:
     app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
-        text = "email ivanov@mail.ru"
-        r1 = await client.post("/process", json={"payload": text, "payload_id": "id-3"})
+        text = EMAIL_TEXT
+        r1 = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-3"})
         masked = r1.json()["result"]
-        r2 = await client.post("/process", json={"payload": masked, "payload_id": "id-3"})
-        r3 = await client.post("/process", json={"payload": masked, "payload_id": "id-3"})
+        r2 = await client.post(PROCESS_PATH, json={"payload": masked, "payload_id": "id-3"})
+        r3 = await client.post(PROCESS_PATH, json={"payload": masked, "payload_id": "id-3"})
         assert r2.json()["result"] == text
         assert r3.json()["result"] == text
 
@@ -94,9 +98,9 @@ async def test_no_pii_unchanged_both_steps(tmp_path) -> None:
     app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "просто текст без персональных данных"
-        r1 = await client.post("/process", json={"payload": text, "payload_id": "id-4"})
+        r1 = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-4"})
         assert r1.json()["result"] == text
-        r2 = await client.post("/process", json={"payload": text, "payload_id": "id-4"})
+        r2 = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-4"})
         assert r2.json()["result"] == text
 
 
@@ -104,15 +108,15 @@ async def test_no_pii_unchanged_both_steps(tmp_path) -> None:
 async def test_concurrent_mask_same_id(tmp_path) -> None:
     app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
-        text = "email ivanov@mail.ru"
+        text = EMAIL_TEXT
 
         async def post():
-            return await client.post("/process", json={"payload": text, "payload_id": "id-5"})
+            return await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-5"})
 
         r1, r2 = await asyncio.gather(post(), post())
         assert r1.json()["result"] == r2.json()["result"]
         masked = r1.json()["result"]
-        r3 = await client.post("/process", json={"payload": masked, "payload_id": "id-5"})
+        r3 = await client.post(PROCESS_PATH, json={"payload": masked, "payload_id": "id-5"})
         assert r3.json()["result"] == text
 
 
@@ -120,12 +124,12 @@ async def test_concurrent_mask_same_id(tmp_path) -> None:
 async def test_changed_text_fragment_replaced(tmp_path) -> None:
     app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
-        text = "email ivanov@mail.ru"
-        r1 = await client.post("/process", json={"payload": text, "payload_id": "id-6"})
+        text = EMAIL_TEXT
+        r1 = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "id-6"})
         masked = r1.json()["result"]
         changed = f"перезвоните на {masked} пожалуйста"
-        r2 = await client.post("/process", json={"payload": changed, "payload_id": "id-6"})
-        assert "ivanov@mail.ru" in r2.json()["result"]
+        r2 = await client.post(PROCESS_PATH, json={"payload": changed, "payload_id": "id-6"})
+        assert EMAIL in r2.json()["result"]
 
 
 @pytest.mark.asyncio
@@ -148,10 +152,10 @@ async def test_process_service_two_workers_shared_redis(tmp_path) -> None:
     worker1 = ProcessService(config_store, store, cipher, ttl_seconds=60)
     worker2 = ProcessService(config_store, store, cipher, ttl_seconds=60)
 
-    text = "email ivanov@mail.ru"
+    text = EMAIL_TEXT
     out1 = await worker1.handle("shared-id", text)
     assert out1.direction == "mask"
-    assert "ivanov@mail.ru" not in out1.result
+    assert EMAIL not in out1.result
 
     out2 = await worker2.handle("shared-id", out1.result)
     assert out2.direction == "unmask"
@@ -163,14 +167,14 @@ async def test_full_mask_roundtrip(tmp_path) -> None:
     app = create_app(_full_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
-        resp = await client.post("/process", json={"payload": text, "payload_id": "full-1"})
+        resp = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "full-1"})
         assert resp.status_code == 200
         masked = resp.json()["result"]
         assert not any(ch.isdigit() for ch in masked)
         assert "Иванов Иван Иванович" not in masked
         assert "4509 123456" not in masked
 
-        resp2 = await client.post("/process", json={"payload": masked, "payload_id": "full-1"})
+        resp2 = await client.post(PROCESS_PATH, json={"payload": masked, "payload_id": "full-1"})
         assert resp2.status_code == 200
         assert resp2.json()["result"] == text
 
@@ -192,14 +196,10 @@ async def test_process_overloaded_returns_429(tmp_path) -> None:
     async with _start_lifespan(app), await _client(app) as client:
         gate = app.state.concurrency_gate
         assert gate.try_enter() is True
-        resp = await client.post(
-            "/process", json={"payload": "email ivanov@mail.ru", "payload_id": "id-7"}
-        )
+        resp = await client.post(PROCESS_PATH, json={"payload": EMAIL_TEXT, "payload_id": "id-7"})
         assert resp.status_code == 429
         assert resp.json() == {"error": "overloaded"}
         assert resp.headers["retry-after"] == "1"
         gate.exit()
-        resp2 = await client.post(
-            "/process", json={"payload": "email ivanov@mail.ru", "payload_id": "id-7"}
-        )
+        resp2 = await client.post(PROCESS_PATH, json={"payload": EMAIL_TEXT, "payload_id": "id-7"})
         assert resp2.status_code == 200

@@ -6,6 +6,8 @@ from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
 from tests.helpers import PARTIAL_PROFILE
 
+NEVSKY_ADDRESS = "г. Санкт-Петербург, Невский пр-т, д. 28"
+
 
 def _engine() -> Engine:
     registry = RecognizerRegistry.from_modules(Settings().recognizer_modules)
@@ -31,10 +33,7 @@ def test_address_with_region() -> None:
 
 
 def test_address_street_after_marker() -> None:
-    assert (
-        _mask("г. Санкт-Петербург, Невский пр-т, д. 28")
-        != "г. Санкт-Петербург, Невский пр-т, д. 28"
-    )
+    assert _mask(NEVSKY_ADDRESS) != NEVSKY_ADDRESS
 
 
 def test_address_street_with_numbers() -> None:
@@ -95,10 +94,7 @@ def test_house_and_apartment() -> None:
 
 
 def test_nevsky_prospekt() -> None:
-    assert (
-        _mask("г. Санкт-Петербург, Невский пр-т, д. 28")
-        == "г. *****-*********, ******* пр-т, д. **"
-    )
+    assert _mask(NEVSKY_ADDRESS) == "г. *****-*********, ******* пр-т, д. **"
 
 
 def test_tverskaya_street() -> None:

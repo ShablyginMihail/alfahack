@@ -5,6 +5,8 @@ from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
 from tests.helpers import PARTIAL_PROFILE
 
+SNILS_TEXT = "СНИЛС 112-233-445 95"
+
 
 def _engine() -> Engine:
     registry = RecognizerRegistry.from_modules(Settings().recognizer_modules)
@@ -66,7 +68,7 @@ def test_passport_99_12_type() -> None:
 
 
 def test_snils_masked() -> None:
-    assert _mask("СНИЛС 112-233-445 95") != "СНИЛС 112-233-445 95"
+    assert _mask(SNILS_TEXT) != SNILS_TEXT
 
 
 def test_snils_11_digits_with_context() -> None:
@@ -82,7 +84,7 @@ def test_foreign_passport() -> None:
 def test_case_insensitive() -> None:
     assert _mask("ПАСПОРТ 4509 123456") == "ПАСПОРТ 45** ****56"
     assert _mask("Серия 4509 номер 123456") == "Серия 45** номер ****56"
-    assert _mask("СНИЛС 112-233-445 95") != "СНИЛС 112-233-445 95"
+    assert _mask(SNILS_TEXT) != SNILS_TEXT
 
 
 def test_year_after_passport_not_masked() -> None:
