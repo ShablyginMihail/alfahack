@@ -1,0 +1,16 @@
+.git
+.venv
+venv
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.hypothesis
+tests
+eval
+loadtest
+docs
+*.zip
+.env
+.env.*
+!.env.example
