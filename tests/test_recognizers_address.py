@@ -1,5 +1,6 @@
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker
+from pii_guard.core.policy import Profile
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
@@ -13,6 +14,10 @@ def _engine() -> Engine:
 
 def _mask(text: str) -> str:
     return _engine().mask(text, PARTIAL_PROFILE).text
+
+
+def _mask_full(text: str) -> str:
+    return _engine().mask(text, Profile(name="checker", mask_style="full")).text
 
 
 def test_full_address() -> None:
@@ -107,3 +112,62 @@ def test_region_republic_case() -> None:
     text = "проживает по адресу республике татарстан, г. тольятти"
     spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "ADDRESS"]
     assert any(text[s.start : s.end] == "татарстан" for s in spans)
+
+
+def test_city_street_house_full() -> None:
+    assert _mask_full("Екатеринбург, ул. 8 Марта, 14") == "************, ул. *******, **"
+
+
+def test_city_street_full() -> None:
+    assert _mask_full("Москва, ул. Тверская") == "******, ул. ********"
+
+
+def test_street_house_after_marker_full() -> None:
+    assert _mask_full("Садовая ул., 5") == "******* ул., *"
+
+
+def test_city_adjective_house_full() -> None:
+    assert _mask_full("адрес: Москва, Профсоюзная 12-34") == "адрес: ******, *********** *****"
+
+
+def test_city_adjective_house_context_full() -> None:
+    assert _mask_full("переехал в Подольск, Высотная 7") == "переехал в ********, ******** *"
+
+
+def test_city_prospekt_house_full() -> None:
+    assert _mask_full("Москва, Ленинградский проспект 37") == "******, ************* проспект **"
+
+
+def test_live_on_prospekt_full() -> None:
+    assert (
+        _mask_full("живу на Ленинском проспекте 45, кв 12")
+        == "живу на ********* проспекте **, кв **"
+    )
+
+
+def test_bank_branch_address_not_masked_full() -> None:
+    text = "Отделение Альфа-Банка находится по адресу: Москва, ул. Каланчёвская, д. 27"
+    assert _mask_full(text) == text
+
+
+def test_moscow_capital_not_masked_full() -> None:
+    assert _mask_full("Москва — столица России") == "Москва — столица России"
+
+
+def test_atm_tverskaya_not_masked_full() -> None:
+    assert (
+        _mask_full("Банкомат на Тверской не выдаёт наличные")
+        == "Банкомат на Тверской не выдаёт наличные"
+    )
+
+
+def test_metro_tverskaya_not_masked_full() -> None:
+    assert _mask_full("Станция метро Пушкинская, выход к Тверской улице") == (
+        "Станция метро Пушкинская, выход к Тверской улице"
+    )
+
+
+def test_delivery_point_prospekt_not_masked_full() -> None:
+    assert _mask_full("Заказ доставят в пункт выдачи на Ленинском проспекте") == (
+        "Заказ доставят в пункт выдачи на Ленинском проспекте"
+    )

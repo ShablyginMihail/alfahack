@@ -149,6 +149,10 @@ class AddressRecognizer(Recognizer):
 
     def find(self, doc: Document) -> Iterable[Span]:
         components = self._find_components(doc)
+        components.extend(self._cities_before_components(doc, components))
+        components.extend(self._houses_after_street(doc, components))
+        components.extend(self._street_after_city(doc, components))
+        components = self._dedupe(components)
         spans: list[Span] = []
         for chain in self._group_chains(doc, components):
             if self._is_bank_branch(doc, chain[0].full_start):
@@ -164,10 +168,6 @@ class AddressRecognizer(Recognizer):
                 spans.append(
                     Span(comp.start, comp.end, "ADDRESS", score, self.name, part=comp.part)
                 )
-        for city in self._find_cities_without_marker(doc):
-            if self._is_bank_branch(doc, city.full_start):
-                continue
-            spans.append(Span(city.start, city.end, "ADDRESS", 0.7, self.name, part="city"))
         return spans
 
     def _find_components(self, doc: Document) -> list[_Component]:
@@ -179,6 +179,7 @@ class AddressRecognizer(Recognizer):
         components.extend(self._houses(doc))
         components.extend(self._apartments(doc))
         components.extend(self._countries(doc))
+        components.extend(self._find_cities_without_marker(doc))
         return components
 
     @staticmethod
@@ -201,11 +202,19 @@ class AddressRecognizer(Recognizer):
             _Component(m.start(1), m.end(1), m.start(), m.end(), "street")
             for m in STREET_RE.finditer(doc.norm)
         ]
-        components.extend(
-            _Component(m.start(1), m.end(1), m.start(), m.end(), "street")
-            for m in STREET_AFTER_RE.finditer(doc.norm)
-            if AddressRecognizer._valid_street_after(m.group(1))
-        )
+        for m in STREET_AFTER_RE.finditer(doc.norm):
+            name = m.group(1)
+            words = [w for w in name.split() if w]
+            if not words or len(words) > 2:
+                continue
+            if len(words) == 2 and words[0] in FUNCTION_WORDS:
+                second = words[1]
+                if AddressRecognizer._valid_street_after(second):
+                    start = m.start(1) + name.index(second)
+                    components.append(_Component(start, m.end(1), m.start(), m.end(), "street"))
+                continue
+            if AddressRecognizer._valid_street_after(name):
+                components.append(_Component(m.start(1), m.end(1), m.start(), m.end(), "street"))
         return components
 
     @staticmethod
@@ -267,6 +276,73 @@ class AddressRecognizer(Recognizer):
             _Component(m.start(), m.end(), m.start(), m.end(), "country")
             for m in COUNTRY_RE.finditer(doc.norm)
         ]
+
+    def _cities_before_components(
+        self, doc: Document, components: list[_Component]
+    ) -> list[_Component]:
+        result: list[_Component] = []
+        for comp in components:
+            before = doc.norm[max(0, comp.full_start - 40) : comp.full_start]
+            match = re.search(r"([а-яё]+(?:-[а-яё]+)*)\s*,\s*$", before)
+            if match is None:
+                continue
+            word = match.group(1)
+            if self._city_normal(word) not in CITIES:
+                continue
+            start = comp.full_start - (len(before) - match.start(1))
+            end = start + len(word)
+            result.append(_Component(start, end, start, end, "city"))
+        return result
+
+    def _houses_after_street(self, doc: Document, components: list[_Component]) -> list[_Component]:
+        result: list[_Component] = []
+        for comp in components:
+            if comp.part != "street":
+                continue
+            after = doc.norm[comp.full_end : comp.full_end + 15]
+            match = re.match(r"^(?:\s*,\s*|\s+)(\d+(?:[/-]\d+)?[а-яё]?)(?![\w/-])", after)
+            if match is None:
+                continue
+            start = comp.full_end + match.start(1)
+            end = comp.full_end + match.end(1)
+            result.append(_Component(start, end, comp.full_end, end, "house"))
+        return result
+
+    def _street_after_city(self, doc: Document, components: list[_Component]) -> list[_Component]:
+        result: list[_Component] = []
+        for comp in components:
+            if comp.part != "city":
+                continue
+            after = doc.norm[comp.full_end : comp.full_end + 60]
+            match = re.match(
+                r"^\s*,\s*([а-яё]+(?:-[а-яё]+)*)\s+(\d+(?:[/-]\d+)?[а-яё]?)(?![\w/-])", after
+            )
+            if match is None:
+                continue
+            name = match.group(1)
+            if name in FUNCTION_WORDS or name in STREET_STOP_WORDS:
+                continue
+            if not self._is_adjective(name):
+                continue
+            street_start = comp.full_end + match.start(1)
+            street_end = comp.full_end + match.end(1)
+            house_start = comp.full_end + match.start(2)
+            house_end = comp.full_end + match.end(2)
+            result.append(_Component(street_start, street_end, street_start, street_end, "street"))
+            result.append(_Component(house_start, house_end, house_start, house_end, "house"))
+        return result
+
+    @staticmethod
+    def _dedupe(components: list[_Component]) -> list[_Component]:
+        seen: set[tuple[int, int]] = set()
+        result: list[_Component] = []
+        for comp in components:
+            key = (comp.start, comp.end)
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(comp)
+        return result
 
     @staticmethod
     def _group_chains(doc: Document, components: list[_Component]) -> list[list[_Component]]:
