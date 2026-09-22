@@ -11,7 +11,7 @@ from pii_guard.recognizers.validators import snils_valid
 PASSPORT_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?(?:№\s*)?\d{6}(?!\d)")
 PASSPORT_RUN_RE = re.compile(r"(?<!\d)\d{10}(?!\d)")
 PASSPORT_SERIES_RE = re.compile(
-    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:паспорта\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?!\d)"
+    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:паспорта\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?![\s-]*(?:№\s*)?\d{6}(?!\d))(?!\d)"
 )
 PASSPORT_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:паспорта\s*)?[:.]?\s*(\d{6})(?!\d)")
 
@@ -20,7 +20,7 @@ DIVISION_CODE_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}(?!\d)")
 DRIVER_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?\d{6}(?!\d)")
 DRIVER_OLD_RE = re.compile(r"(?<!\d)\d{2}[\s-]?[А-Яа-яЁё]{2}[\s-]?\d{6}(?!\d)")
 DRIVER_SERIES_RE = re.compile(
-    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:удостоверения\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?!\d)"
+    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:удостоверения\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?![\s-]*(?:№\s*)?\d{6}(?!\d))(?!\d)"
 )
 DRIVER_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:удостоверения\s*)?[:.]?\s*(\d{6})(?!\d)")
 

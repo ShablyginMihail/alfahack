@@ -87,7 +87,7 @@ def test_case_insensitive() -> None:
 
 def test_year_after_passport_not_masked() -> None:
     text = "Паспорт 4509 123456 выдан 12.05.2015"
-    assert _mask(text) == "Паспорт 45** ****56 выдан 12.05.2015"
+    assert _mask(text) == "Паспорт 45** ****56 выдан **.**.****"
 
 
 def test_year_with_passport_not_masked() -> None:
@@ -116,3 +116,11 @@ def test_passport_separate_with_labels() -> None:
 
 def test_passport_separate_plain() -> None:
     assert _mask("серия 4509 номер 123456") == "серия 45** номер ****56"
+
+
+def test_passport_series_with_combined_number() -> None:
+    assert _mask("серия 4509 123456") == "серия 45** ****56"
+
+
+def test_passport_series_with_no_number() -> None:
+    assert _mask("паспорт серия 4509 № 123456") != "паспорт серия 4509 № 123456"

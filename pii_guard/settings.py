@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     recognizer_modules: list[str] = [
         "pii_guard.recognizers.numeric",
         "pii_guard.recognizers.documents",
+        "pii_guard.recognizers.dates",
     ]
 
 
