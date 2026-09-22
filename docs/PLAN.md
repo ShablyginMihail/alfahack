@@ -109,7 +109,7 @@ config/                systems.yaml, pii_types.yaml
 data/dicts/            небольшие справочники (известные люди, страны, типы улиц)
 tests/                 pytest
 eval/                  генератор датасета, golden-набор, evaluate.py
-loadtest/              k6-сценарий
+loadtest/              нагрузочный скрипт для POST /process (asyncio, только стандартная библиотека)
 deploy/                prometheus, grafana
 docs/                  этот план, контракт
 ```
