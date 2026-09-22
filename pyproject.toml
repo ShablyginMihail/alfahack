@@ -37,6 +37,7 @@ dev = [
     "mypy",
     "bandit",
     "types-PyYAML",
+    "rapidfuzz",
 ]
 
 [tool.setuptools.packages.find]
@@ -70,3 +71,5 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# пакет eval лежит в корне репозитория и не устанавливается
+pythonpath = ["."]
