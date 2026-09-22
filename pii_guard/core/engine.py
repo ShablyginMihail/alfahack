@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import bisect
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Protocol
 
 import structlog
@@ -19,6 +19,15 @@ WHOLE_PAYLOAD_MAX_CHARS = 120
 WHOLE_PAYLOAD_MIN_SCORE = 0.2
 
 _WORD_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*")
+
+
+def _span_in_bounds(span: Span, text: str, profile: Profile) -> bool:
+    return (
+        profile.allows(span.pii_type)
+        and span.start < span.end
+        and span.start >= 0
+        and span.end <= len(text)
+    )
 
 
 def resolve_overlaps(
@@ -76,6 +85,24 @@ class Engine:
         if not text:
             return []
         doc = Document.from_text(text)
+        candidates = self._collect_candidates(doc, profile)
+
+        threshold = profile.threshold_for
+        filtered = [
+            span
+            for span in candidates
+            if _span_in_bounds(span, text, profile) and span.score >= threshold(span.pii_type)
+        ]
+
+        if len(text) <= WHOLE_PAYLOAD_MAX_CHARS:
+            filtered = self._add_weak_candidates(
+                filtered, candidates, doc, text, profile, threshold
+            )
+
+        resolved = resolve_overlaps(filtered, self._priorities)
+        return apply_rules(resolved, profile.rules)
+
+    def _collect_candidates(self, doc: Document, profile: Profile) -> list[Span]:
         candidates: list[Span] = []
         for recognizer in self._registry.for_types(profile.pii_types):
             found: list[Span] = []
@@ -89,38 +116,31 @@ class Engine:
                 )
                 continue
             candidates.extend(found)
+        return candidates
 
-        threshold = profile.threshold_for
-        filtered = [
+    def _add_weak_candidates(
+        self,
+        filtered: list[Span],
+        candidates: list[Span],
+        doc: Document,
+        text: str,
+        profile: Profile,
+        threshold: Callable[[str], float],
+    ) -> list[Span]:
+        weak = [
             span
             for span in candidates
-            if profile.allows(span.pii_type)
-            and span.start < span.end
-            and span.start >= 0
-            and span.end <= len(text)
-            and span.score >= threshold(span.pii_type)
+            if _span_in_bounds(span, text, profile)
+            and span.score >= WHOLE_PAYLOAD_MIN_SCORE
+            and span.score < threshold(span.pii_type)
         ]
-
-        if len(text) <= WHOLE_PAYLOAD_MAX_CHARS:
-            weak = [
-                span
-                for span in candidates
-                if profile.allows(span.pii_type)
-                and span.start < span.end
-                and span.start >= 0
-                and span.end <= len(text)
-                and span.score >= WHOLE_PAYLOAD_MIN_SCORE
-                and span.score < threshold(span.pii_type)
-            ]
-            if weak and self._whole_payload_covered(doc, candidates, profile):
-                seen = set(filtered)
-                for span in weak:
-                    if span not in seen:
-                        filtered.append(span)
-                        seen.add(span)
-
-        resolved = resolve_overlaps(filtered, self._priorities)
-        return apply_rules(resolved, profile.rules)
+        if weak and self._whole_payload_covered(doc, candidates, profile):
+            seen = set(filtered)
+            for span in weak:
+                if span not in seen:
+                    filtered.append(span)
+                    seen.add(span)
+        return filtered
 
     @staticmethod
     def _whole_payload_covered(

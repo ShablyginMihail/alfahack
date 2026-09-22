@@ -52,29 +52,37 @@ class AppConfig:
         for name, system in self._systems.systems.items():
             if not system.enabled:
                 continue
-            if system.pii_types != "all":
-                for pii_type in system.pii_types:
-                    if pii_type not in valid:
-                        raise ValueError(f"система {name}: неизвестный тип ПД {pii_type!r}")
-            for rule in system.rules:
-                if rule.type not in valid:
-                    raise ValueError(f"система {name}: неизвестный тип ПД {rule.type!r} в правиле")
-                for req in rule.requires_any:
-                    if req not in valid:
-                        raise ValueError(f"система {name}: неизвестный тип ПД {req!r} в правиле")
-            pii_types = None if system.pii_types == "all" else frozenset(system.pii_types)
-            rules = tuple(
-                CombinationRule(rule.type, frozenset(rule.requires_any)) for rule in system.rules
-            )
-            result[name] = Profile(
-                name=name,
-                pii_types=pii_types,
-                mask_style=system.mask_style,
-                unmask=system.unmask,
-                strict=system.strict,
-                rules=rules,
-            )
+            self._validate_system(name, system, valid)
+            result[name] = self._profile_for(name, system)
         return result
+
+    def _validate_system(self, name: str, system: SystemConfigModel, valid: frozenset[str]) -> None:
+        if system.pii_types != "all":
+            for pii_type in system.pii_types:
+                self._check_type(name, pii_type, valid, "")
+        for rule in system.rules:
+            self._check_type(name, rule.type, valid, " в правиле")
+            for req in rule.requires_any:
+                self._check_type(name, req, valid, " в правиле")
+
+    @staticmethod
+    def _check_type(name: str, pii_type: str, valid: frozenset[str], suffix: str) -> None:
+        if pii_type not in valid:
+            raise ValueError(f"система {name}: неизвестный тип ПД {pii_type!r}{suffix}")
+
+    def _profile_for(self, name: str, system: SystemConfigModel) -> Profile:
+        pii_types = None if system.pii_types == "all" else frozenset(system.pii_types)
+        rules = tuple(
+            CombinationRule(rule.type, frozenset(rule.requires_any)) for rule in system.rules
+        )
+        return Profile(
+            name=name,
+            pii_types=pii_types,
+            mask_style=system.mask_style,
+            unmask=system.unmask,
+            strict=system.strict,
+            rules=rules,
+        )
 
     def system_for_key(self, api_key: str) -> tuple[str, SystemConfigModel] | None:
         digest = sha256_hex(api_key)

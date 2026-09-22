@@ -75,12 +75,7 @@ def mask_email(value: str, mask_char: str = "*") -> str:
     return local[0] + mask_char * (len(local) - 1) + value[at:]
 
 
-def mask_phone(value: str, mask_char: str = "*") -> str:
-    digits_pos = [i for i, ch in enumerate(value) if ch.isdigit()]
-    digits_str = "".join(value[i] for i in digits_pos)
-    n = len(digits_str)
-
-    code_len = 0
+def _phone_code_length(value: str, digits_str: str) -> int:
     plus = value.find("+")
     if plus >= 0:
         run = 0
@@ -89,11 +84,19 @@ def mask_phone(value: str, mask_char: str = "*") -> str:
             run += 1
             i += 1
         if run <= 3:
-            code_len = run
-        else:
-            code_len = 1 if digits_str[0] in ("7", "1") else 3
-    elif n == 11 and digits_str[0] in ("8", "7"):
-        code_len = 1
+            return run
+        return 1 if digits_str[0] in ("7", "1") else 3
+    if len(digits_str) == 11 and digits_str[0] in ("8", "7"):
+        return 1
+    return 0
+
+
+def mask_phone(value: str, mask_char: str = "*") -> str:
+    digits_pos = [i for i, ch in enumerate(value) if ch.isdigit()]
+    digits_str = "".join(value[i] for i in digits_pos)
+    n = len(digits_str)
+
+    code_len = _phone_code_length(value, digits_str)
 
     keep: set[int] = set(digits_pos[:code_len])
     if n - code_len >= 2:

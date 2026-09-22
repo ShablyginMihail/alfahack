@@ -751,24 +751,27 @@ class NameRecognizer(Recognizer):
         self, doc: Document, tokens: list[_Token], i: int
     ) -> tuple[Span, int] | None:
         for pattern, score in PATTERNS:
-            if i + len(pattern) > len(tokens):
+            if not self._pattern_matches(doc, tokens, i, pattern):
                 continue
-            ok = True
-            for j, role in enumerate(pattern):
-                if role not in tokens[i + j].roles:
-                    ok = False
-                    break
-                if j > 0 and not self._adjacent(doc, tokens[i + j - 1], tokens[i + j]):
-                    ok = False
-                    break
-            if ok:
-                start = tokens[i].start
-                end = tokens[i + len(pattern) - 1].end
-                span = Span(start, end, "PERSON", score, self.name)
-                if pattern == ("NAME", "PATR"):
-                    span = self._extend_with_surname(doc, span, tokens, i, len(pattern))
-                return span, i + len(pattern)
+            start = tokens[i].start
+            end = tokens[i + len(pattern) - 1].end
+            span = Span(start, end, "PERSON", score, self.name)
+            if pattern == ("NAME", "PATR"):
+                span = self._extend_with_surname(doc, span, tokens, i, len(pattern))
+            return span, i + len(pattern)
         return None
+
+    def _pattern_matches(
+        self, doc: Document, tokens: list[_Token], i: int, pattern: tuple[str, ...]
+    ) -> bool:
+        if i + len(pattern) > len(tokens):
+            return False
+        for j, role in enumerate(pattern):
+            if role not in tokens[i + j].roles:
+                return False
+            if j > 0 and not self._adjacent(doc, tokens[i + j - 1], tokens[i + j]):
+                return False
+        return True
 
     def _extend_with_surname(
         self, doc: Document, span: Span, tokens: list[_Token], start: int, length: int

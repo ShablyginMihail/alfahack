@@ -79,24 +79,7 @@ class RegexRecognizer(Recognizer):
                     continue
                 start = match.start(rule.group)
                 end = match.end(rule.group)
-                score = rule.base_score
-                if rule.validator is not None and rule.validator(digits(value)):
-                    score += rule.validator_bonus
-                if (
-                    rule.context is not None
-                    and find_keyword(
-                        doc, start, end, rule.context, rule.context_window, rule.context_direction
-                    )
-                    is not None
-                ):
-                    score += rule.context_bonus
-                if (
-                    rule.negative is not None
-                    and find_keyword(doc, start, end, rule.negative, rule.context_window, "before")
-                    is not None
-                ):
-                    score -= rule.negative_penalty
-                score = max(0.0, min(1.0, score))
+                score = self._score(rule, doc, start, end, value)
                 spans.append(
                     Span(
                         start=start,
@@ -108,3 +91,23 @@ class RegexRecognizer(Recognizer):
                     )
                 )
         return spans
+
+    def _score(self, rule: PatternRule, doc: Document, start: int, end: int, value: str) -> float:
+        score = rule.base_score
+        if rule.validator is not None and rule.validator(digits(value)):
+            score += rule.validator_bonus
+        if (
+            rule.context is not None
+            and find_keyword(
+                doc, start, end, rule.context, rule.context_window, rule.context_direction
+            )
+            is not None
+        ):
+            score += rule.context_bonus
+        if (
+            rule.negative is not None
+            and find_keyword(doc, start, end, rule.negative, rule.context_window, "before")
+            is not None
+        ):
+            score -= rule.negative_penalty
+        return max(0.0, min(1.0, score))
