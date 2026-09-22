@@ -1,5 +1,8 @@
 import multiprocessing
 import os
+import shutil
+
+from prometheus_client import multiprocess
 
 bind = "0.0.0.0:8000"
 workers = int(os.getenv("WEB_CONCURRENCY", multiprocessing.cpu_count()))
@@ -11,3 +14,14 @@ graceful_timeout = 10
 backlog = 2048
 accesslog = None
 errorlog = "-"
+
+
+def on_starting(server) -> None:
+    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+    if multiproc_dir:
+        shutil.rmtree(multiproc_dir, ignore_errors=True)
+        os.makedirs(multiproc_dir, exist_ok=True)
+
+
+def child_exit(server, worker) -> None:
+    multiprocess.mark_process_dead(worker.pid)

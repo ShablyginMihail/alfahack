@@ -3,7 +3,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -42,6 +42,14 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=422,
             content={"error": "invalid_request", "detail": _safe_detail(exc.errors())},
         )
+
+    @app.exception_handler(HTTPException)
+    async def _http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        if isinstance(exc.detail, Mapping):
+            content = dict(exc.detail)
+        else:
+            content = {"error": str(exc.detail)}
+        return JSONResponse(status_code=exc.status_code, content=content, headers=exc.headers)
 
     @app.exception_handler(Exception)
     async def _internal_error_handler(request: Request, exc: Exception) -> JSONResponse:

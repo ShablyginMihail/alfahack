@@ -1,73 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from contextlib import asynccontextmanager
 
 import pytest
 from fakeredis.aioredis import FakeRedis
 from httpx import ASGITransport, AsyncClient
 
-from pii_guard.core.engine import Engine
-from pii_guard.core.masking import DefaultMasker
-from pii_guard.core.models import Span
-from pii_guard.core.normalize import Document
-from pii_guard.core.policy import CHECKER_PROFILE
-from pii_guard.core.registry import RecognizerRegistry
-from pii_guard.core.types import default_type_registry
+from pii_guard.config.loader import ConfigStore
 from pii_guard.main import create_app
 from pii_guard.services.process import ProcessService
 from pii_guard.settings import Settings
 from pii_guard.store.crypto import RecordCipher, decode_key
 from pii_guard.store.redis_store import RedisStore
-
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-PASSPORT_RE = re.compile(r"\b4509 123456\b")
+from tests.helpers import make_settings
 
 
-class FakeRecognizer:
-    name = "fake"
-    pii_types = frozenset({"EMAIL", "PASSPORT"})
-
-    def find(self, doc: Document) -> list[Span]:
-        spans: list[Span] = []
-        for match in EMAIL_RE.finditer(doc.text):
-            spans.append(
-                Span(
-                    start=match.start(),
-                    end=match.end(),
-                    pii_type="EMAIL",
-                    score=1.0,
-                    recognizer=self.name,
-                )
-            )
-        for match in PASSPORT_RE.finditer(doc.text):
-            spans.append(
-                Span(
-                    start=match.start(),
-                    end=match.end(),
-                    pii_type="PASSPORT",
-                    score=1.0,
-                    recognizer=self.name,
-                )
-            )
-        return spans
-
-
-def _registry() -> RecognizerRegistry:
-    registry = RecognizerRegistry()
-    registry.register(FakeRecognizer())
-    return registry
-
-
-def _settings() -> Settings:
-    return Settings(
-        redis_url=None,
-        max_body_bytes=1000,
-        log_level="WARNING",
-        encryption_key=None,
-        hmac_key=None,
-    )
+def _settings(tmp_path) -> Settings:
+    return make_settings(tmp_path)
 
 
 async def _client(app) -> AsyncClient:
@@ -82,8 +32,8 @@ async def _start_lifespan(app):
 
 
 @pytest.mark.asyncio
-async def test_mask_then_unmask_roundtrip() -> None:
-    app = create_app(_settings(), registry=_registry())
+async def test_mask_then_unmask_roundtrip(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "Клиент Иванов Иван, email ivanov@mail.ru, паспорт 4509 123456"
         resp = await client.post("/process", json={"payload": text, "payload_id": "id-1"})
@@ -98,8 +48,8 @@ async def test_mask_then_unmask_roundtrip() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mask_retry_same_mask() -> None:
-    app = create_app(_settings(), registry=_registry())
+async def test_mask_retry_same_mask(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "email ivanov@mail.ru"
         r1 = await client.post("/process", json={"payload": text, "payload_id": "id-2"})
@@ -108,8 +58,8 @@ async def test_mask_retry_same_mask() -> None:
 
 
 @pytest.mark.asyncio
-async def test_unmask_retry_returns_original() -> None:
-    app = create_app(_settings(), registry=_registry())
+async def test_unmask_retry_returns_original(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "email ivanov@mail.ru"
         r1 = await client.post("/process", json={"payload": text, "payload_id": "id-3"})
@@ -121,8 +71,8 @@ async def test_unmask_retry_returns_original() -> None:
 
 
 @pytest.mark.asyncio
-async def test_no_pii_unchanged_both_steps() -> None:
-    app = create_app(_settings(), registry=_registry())
+async def test_no_pii_unchanged_both_steps(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "просто текст без персональных данных"
         r1 = await client.post("/process", json={"payload": text, "payload_id": "id-4"})
@@ -132,8 +82,8 @@ async def test_no_pii_unchanged_both_steps() -> None:
 
 
 @pytest.mark.asyncio
-async def test_concurrent_mask_same_id() -> None:
-    app = create_app(_settings(), registry=_registry())
+async def test_concurrent_mask_same_id(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "email ivanov@mail.ru"
 
@@ -148,8 +98,8 @@ async def test_concurrent_mask_same_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_changed_text_fragment_replaced() -> None:
-    app = create_app(_settings(), registry=_registry())
+async def test_changed_text_fragment_replaced(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         text = "email ivanov@mail.ru"
         r1 = await client.post("/process", json={"payload": text, "payload_id": "id-6"})
@@ -160,8 +110,8 @@ async def test_changed_text_fragment_replaced() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ready_memory_store() -> None:
-    app = create_app(_settings(), registry=_registry())
+async def test_ready_memory_store(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
         resp = await client.get("/ready")
         assert resp.status_code == 200
@@ -169,14 +119,15 @@ async def test_ready_memory_store() -> None:
 
 
 @pytest.mark.asyncio
-async def test_process_service_two_workers_shared_redis() -> None:
+async def test_process_service_two_workers_shared_redis(tmp_path) -> None:
     cipher = RecordCipher(decode_key(None), decode_key(None))
     redis = FakeRedis()
     store = RedisStore(redis, cipher)
-    engine = Engine(_registry(), DefaultMasker(default_type_registry()))
+    settings = _settings(tmp_path)
+    config_store = ConfigStore(settings.config_dir, settings.recognizer_modules)
 
-    worker1 = ProcessService(engine, store, cipher, CHECKER_PROFILE, ttl_seconds=60)
-    worker2 = ProcessService(engine, store, cipher, CHECKER_PROFILE, ttl_seconds=60)
+    worker1 = ProcessService(config_store, store, cipher, ttl_seconds=60)
+    worker2 = ProcessService(config_store, store, cipher, ttl_seconds=60)
 
     text = "email ivanov@mail.ru"
     out1 = await worker1.handle("shared-id", text)

@@ -3,15 +3,12 @@ from httpx import ASGITransport, AsyncClient
 
 from pii_guard.main import create_app
 from pii_guard.settings import Settings
+from tests.helpers import make_settings
 
 
 @pytest.fixture
-def settings() -> Settings:
-    return Settings(
-        redis_url=None,
-        max_body_bytes=1000,
-        log_level="WARNING",
-    )
+def settings(tmp_path) -> Settings:
+    return make_settings(tmp_path)
 
 
 @pytest.fixture

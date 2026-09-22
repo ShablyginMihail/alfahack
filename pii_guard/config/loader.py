@@ -33,6 +33,7 @@ class AppConfig:
         self._systems = systems
         self._pii_types = pii_types
         self._registry = self._build_type_registry()
+        self._profiles: dict[str, Profile] | None = None
 
     def _build_type_registry(self) -> TypeRegistry:
         registry = default_type_registry()
@@ -41,6 +42,11 @@ class AppConfig:
         return registry
 
     def profiles(self) -> dict[str, Profile]:
+        if self._profiles is None:
+            self._profiles = self._build_profiles()
+        return self._profiles
+
+    def _build_profiles(self) -> dict[str, Profile]:
         valid = self._registry.codes()
         result: dict[str, Profile] = {}
         for name, system in self._systems.systems.items():
@@ -70,15 +76,18 @@ class AppConfig:
             )
         return result
 
-    def system_for_key(self, api_key: str) -> SystemConfigModel | None:
+    def system_for_key(self, api_key: str) -> tuple[str, SystemConfigModel] | None:
         digest = sha256_hex(api_key)
-        for system in self._systems.systems.values():
+        for name, system in self._systems.systems.items():
             if system.api_key_sha256 and hmac.compare_digest(digest, system.api_key_sha256):
-                return system
+                return name, system
         return None
 
     def type_registry(self) -> TypeRegistry:
         return self._registry
+
+    def system_configs(self) -> dict[str, SystemConfigModel]:
+        return dict(self._systems.systems)
 
     def partial_specs(self) -> dict[str, PartialSpec]:
         return {
@@ -135,14 +144,16 @@ class ConfigStore:
             raise RuntimeError("config not loaded")
         return self._current
 
-    def reload(self) -> None:
+    def reload(self) -> str | None:
         try:
             config = load_config(self._config_dir)
             engine = build_engine(config, self._recognizer_modules)
             self._current = (config, engine)
             self._mtimes = self._file_mtimes()
+            return None
         except Exception as exc:
             logger.warning("config_reload_failed", error=str(exc))
+            return str(exc)
 
     def maybe_reload(self) -> None:
         now = time.monotonic()

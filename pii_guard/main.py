@@ -9,13 +9,16 @@ import structlog
 from fastapi import FastAPI
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from pii_guard.api import errors, health, process
+from pii_guard.api import admin, errors, health, mask, metrics, process
+from pii_guard.config.loader import ConfigStore
 from pii_guard.core.engine import Engine
-from pii_guard.core.masking import DefaultMasker
 from pii_guard.core.policy import CHECKER_PROFILE
-from pii_guard.core.registry import RecognizerRegistry
-from pii_guard.core.types import default_type_registry
 from pii_guard.observability.logging import configure_logging, get_logger
+from pii_guard.observability.metrics import (
+    endpoint_label,
+    observe_request,
+    set_store_degraded,
+)
 from pii_guard.services.process import ProcessService
 from pii_guard.settings import Settings, get_settings
 from pii_guard.store.base import MappingStore
@@ -70,6 +73,8 @@ class RequestContextMiddleware:
             self._log_unhandled(exc)
         finally:
             duration_ms = (time.perf_counter() - start) * 1000
+            endpoint = endpoint_label(scope.get("path", ""))
+            observe_request(endpoint, status, duration_ms / 1000)
             logger.info(
                 "request",
                 method=scope.get("method"),
@@ -156,7 +161,6 @@ class BodyLimitMiddleware:
 
 def create_app(
     settings: Settings | None = None,
-    registry: RecognizerRegistry | None = None,
 ) -> FastAPI:
     if settings is None:
         settings = get_settings()
@@ -169,11 +173,7 @@ def create_app(
         logger.warning("crypto keys not configured, generated ephemeral keys")
 
     cipher = RecordCipher(encryption_key, hmac_key)
-
-    if registry is None:
-        registry = RecognizerRegistry.from_modules(settings.recognizer_modules)
-    masker = DefaultMasker(default_type_registry())
-    engine = Engine(registry, masker)
+    config_store = ConfigStore(settings.config_dir, settings.recognizer_modules)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -187,15 +187,17 @@ def create_app(
         else:
             store = MemoryStore(cipher)
         service = ProcessService(
-            engine,
+            config_store,
             store,
             cipher,
-            CHECKER_PROFILE,
             settings.mapping_ttl_seconds,
         )
         app.state.store = store
         app.state.process_service = service
         app.state.cipher = cipher
+        app.state.config_store = config_store
+        set_store_degraded(store.backend == "redis-degraded")
+        _, engine = config_store.current()
         warm_up(engine)
         try:
             yield
@@ -214,6 +216,9 @@ def create_app(
     errors.register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(process.router)
+    app.include_router(mask.router)
+    app.include_router(admin.router)
+    app.include_router(metrics.router)
 
     return app
 

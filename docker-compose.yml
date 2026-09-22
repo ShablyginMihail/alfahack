@@ -6,6 +6,9 @@ services:
       - "8000:8000"
     environment:
       PII_REDIS_URL: redis://redis:6379/0
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
+    tmpfs:
+      - /tmp/prometheus
     depends_on:
       redis:
         condition: service_healthy

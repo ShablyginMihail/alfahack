@@ -22,6 +22,7 @@ class ProcessResponse(BaseModel):
 @router.post("/process", response_model=ProcessResponse)
 async def process(req: ProcessRequest, request: Request) -> ProcessResponse:
     service = request.app.state.process_service
+    request.app.state.config_store.maybe_reload()
     start = time.perf_counter()
     outcome = await service.handle(req.payload_id, req.payload)
     duration_ms = (time.perf_counter() - start) * 1000
