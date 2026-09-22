@@ -15,6 +15,16 @@ async def test_index_page_served_with_security_headers(tmp_path) -> None:
     assert resp.headers["x-content-type-options"] == "nosniff"
 
 
+async def test_index_page_has_chat_controls(tmp_path) -> None:
+    app = create_app(make_settings(tmp_path))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "Отправить в LLM" in resp.text
+    assert 'id="chat-key"' in resp.text
+    assert 'type="password"' in resp.text
+
+
 async def test_static_assets_served(tmp_path) -> None:
     app = create_app(make_settings(tmp_path))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

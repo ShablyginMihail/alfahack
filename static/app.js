@@ -7,9 +7,17 @@ const elements = {
   maskedMeta: document.getElementById("masked-meta"),
   restored: document.getElementById("restored"),
   restoredMeta: document.getElementById("restored-meta"),
+  chatKey: document.getElementById("chat-key"),
+  chatMessage: document.getElementById("chat-message"),
+  chatButton: document.getElementById("chat-btn"),
+  chatStatus: document.getElementById("chat-status"),
+  chatMasked: document.getElementById("chat-masked"),
+  chatLlm: document.getElementById("chat-llm"),
+  chatAnswer: document.getElementById("chat-answer"),
+  chatMeta: document.getElementById("chat-meta"),
 };
 
-const state = { payloadId: null, original: "", masked: "", busy: false };
+const state = { payloadId: null, original: "", masked: "", busy: false, chatBusy: false };
 
 // crypto.randomUUID есть только в защищённом контексте, а демо может открываться по http
 function newPayloadId() {
@@ -75,7 +83,8 @@ function renderMasked(container, text) {
   container.replaceChildren();
   let cursor = 0;
   let fragments = 0;
-  for (const match of text.matchAll(/\*+/g)) {
+  const pattern = /\*+|\[[А-ЯЁA-Z_]+(?:_\d+)?\]/g;
+  for (const match of text.matchAll(pattern)) {
     if (match.index > cursor) {
       container.append(text.slice(cursor, match.index));
     }
@@ -149,6 +158,120 @@ elements.source.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !state.busy) {
     event.preventDefault();
     runStep(maskText);
+  }
+});
+
+function setChatStatus(message, kind) {
+  elements.chatStatus.textContent = message;
+  elements.chatStatus.dataset.kind = kind;
+}
+
+function setChatMeta(message, kind) {
+  elements.chatMeta.textContent = message;
+  elements.chatMeta.dataset.kind = kind;
+}
+
+function resetChatOutputs() {
+  elements.chatMasked.replaceChildren();
+  elements.chatLlm.replaceChildren();
+  elements.chatAnswer.replaceChildren();
+  setChatMeta("", "");
+}
+
+function formatEntities(entities) {
+  return Object.entries(entities)
+    .map(([type, count]) => `${type}: ${count}`)
+    .join(", ");
+}
+
+function llmLabel(llm) {
+  if (llm === "mock_fallback") {
+    return "LLM недоступна, ответ заглушки";
+  }
+  return llm;
+}
+
+async function callChat(text, apiKey) {
+  const started = performance.now();
+  let response;
+  try {
+    response = await fetch("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": apiKey,
+      },
+      body: JSON.stringify({ messages: [{ role: "user", content: text }] }),
+    });
+  } catch {
+    throw new Error("Сервис недоступен");
+  }
+  const elapsed = performance.now() - started;
+  if (response.status === 401) {
+    throw new Error("Нужен действующий ключ системы");
+  }
+  if (response.status === 403) {
+    throw new Error("Система отключена в настройках");
+  }
+  if (response.status === 429) {
+    const retryAfter = response.headers.get("Retry-After");
+    const seconds = retryAfter ? parseInt(retryAfter, 10) : NaN;
+    const suffix = Number.isFinite(seconds) ? ` через ${seconds} с` : "";
+    throw new Error(`Сервис перегружен, повторите${suffix}`);
+  }
+  if (!response.ok) {
+    throw new Error(`Ошибка ${response.status}`);
+  }
+  const data = await response.json();
+  return { data, elapsed };
+}
+
+async function sendChat() {
+  const text = elements.chatMessage.value;
+  if (text.trim() === "") {
+    setChatStatus("Введите сообщение.", "error");
+    return;
+  }
+  const apiKey = elements.chatKey.value;
+  resetChatOutputs();
+  const { data, elapsed } = await callChat(text, apiKey);
+  const maskedMessages = data.pii_guard.masked_messages || [];
+  const lastUser = [...maskedMessages].reverse().find((m) => m.role === "user");
+  renderMasked(elements.chatMasked, lastUser ? lastUser.content : "");
+  renderMasked(elements.chatLlm, data.pii_guard.llm_answer_masked || "");
+  elements.chatAnswer.textContent = data.choices[0].message.content;
+  const entities = formatEntities(data.pii_guard.entities || {});
+  const meta = `модель: ${llmLabel(data.pii_guard.llm)} · ${entities} · ${formatMs(elapsed)}`;
+  setChatMeta(meta, "ok");
+  setChatStatus("", "");
+}
+
+async function runChat() {
+  state.chatBusy = true;
+  elements.chatButton.disabled = true;
+  try {
+    await sendChat();
+  } catch (error) {
+    setChatStatus(error.message, "error");
+  } finally {
+    state.chatBusy = false;
+    elements.chatButton.disabled = false;
+  }
+}
+
+for (const chip of document.querySelectorAll("[data-chat-example]")) {
+  chip.addEventListener("click", () => {
+    elements.chatMessage.value = chip.dataset.chatExample;
+    resetChatOutputs();
+    elements.chatMessage.focus();
+  });
+}
+
+elements.chatButton.addEventListener("click", () => runChat());
+elements.chatMessage.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !state.chatBusy) {
+    event.preventDefault();
+    runChat();
   }
 });
 

@@ -56,6 +56,39 @@
       <pre id="restored" class="output" aria-live="polite"></pre>
     </section>
 
+    <section class="card" aria-labelledby="chat-title">
+      <div class="card-head">
+        <h2 id="chat-title">Чат с LLM через модуль</h2>
+      </div>
+      <label class="field-label" for="chat-key">Ключ системы (X-API-Key)</label>
+      <input type="password" id="chat-key" autocomplete="off" spellcheck="false" placeholder="Введите ключ системы">
+      <div class="examples" role="group" aria-label="Примеры сообщений">
+        <button type="button" class="chip" data-chat-example="Клиент Петрова Мария Сергеевна, паспорт 4510 654321, телефон +7 916 123-45-67. Составь письмо о перевыпуске карты.">Письмо клиенту</button>
+        <button type="button" class="chip" data-chat-example="Расскажи, где родился поэт Александр Пушкин">Известный человек</button>
+      </div>
+      <label class="field-label" for="chat-message">Сообщение</label>
+      <textarea id="chat-message" rows="4" spellcheck="false" placeholder="Введите сообщение для LLM"></textarea>
+      <div class="actions">
+        <button type="button" id="chat-btn" class="button primary">Отправить в LLM</button>
+      </div>
+      <p id="chat-status" class="status" role="status" aria-live="polite"></p>
+      <div class="chat-outputs">
+        <div class="chat-block">
+          <h3>Что увидела LLM</h3>
+          <pre id="chat-masked" class="output" aria-live="polite"></pre>
+        </div>
+        <div class="chat-block">
+          <h3>Ответ LLM до восстановления</h3>
+          <pre id="chat-llm" class="output" aria-live="polite"></pre>
+        </div>
+        <div class="chat-block">
+          <h3>Ответ системе-потребителю</h3>
+          <pre id="chat-answer" class="output" aria-live="polite"></pre>
+        </div>
+      </div>
+      <p id="chat-meta" class="meta"></p>
+    </section>
+
     <footer class="footer">
       Запросы идут в <code>POST /process</code>. Соответствия хранятся зашифрованными
       в Redis 30 минут, персональные данные не попадают в логи и метрики.
