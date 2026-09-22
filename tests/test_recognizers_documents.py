@@ -42,7 +42,7 @@ def test_passport_separate_with_no() -> None:
 
 
 def test_passport_no_context_not_masked() -> None:
-    assert _mask("4509 123456") == "4509 123456"
+    assert _mask("Заказ 4509 123456 доставлен") == "Заказ 4509 123456 доставлен"
 
 
 def test_division_code() -> None:
@@ -50,7 +50,7 @@ def test_division_code() -> None:
 
 
 def test_division_code_no_context_not_masked() -> None:
-    assert _mask("770-001") == "770-001"
+    assert _mask("Артикул 770-001 есть на складе") == "Артикул 770-001 есть на складе"
 
 
 def test_driver_license_type() -> None:

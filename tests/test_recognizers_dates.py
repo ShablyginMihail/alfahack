@@ -122,7 +122,7 @@ def test_no_context_recent_date_not_masked() -> None:
 
 
 def test_no_context_old_date_not_masked_normal() -> None:
-    assert _mask("12.03.1985") == "12.03.1985"
+    assert _mask("Встреча 12.03.1985 перенесена") == "Встреча 12.03.1985 перенесена"
 
 
 def test_no_context_old_date_masked_strict() -> None:

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
         "pii_guard.recognizers.names",
         "pii_guard.recognizers.address",
         "pii_guard.recognizers.civil",
+        "pii_guard.recognizers.standalone",
     ]
 
 
