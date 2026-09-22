@@ -10,13 +10,16 @@ from pii_guard.recognizers.standalone import StandaloneValueRecognizer
 
 FULL_PROFILE = Profile(name="checker", mask_style="full")
 
+DATE_WORDS = "12 марта 1985 года"
+CITY_MARKER = "г. Саратов"
+
 VALUES = [
     "Иванов",
     "Анна",
     "12.03.1985",
     "12/03/1985",
     "03.12.85",
-    "12 марта 1985 года",
+    DATE_WORDS,
     "4509 123456",
     "4509123456",
     "770-001",
@@ -26,7 +29,7 @@ VALUES = [
     "123",
     "1234",
     "Москва",
-    "г. Саратов",
+    CITY_MARKER,
     "Россия",
     "Российская Федерация",
     "ОУФМС России по г. Москве",
@@ -69,15 +72,15 @@ def test_standalone_values_found_and_masked() -> None:
 
 def test_standalone_marker_and_tail_kept() -> None:
     recognizer = StandaloneValueRecognizer()
-    doc = Document.from_text("г. Саратов")
+    doc = Document.from_text(CITY_MARKER)
     span = next(iter(recognizer.find(doc)))
     assert doc.text[span.start : span.end] == "Саратов"
-    assert "г." in _masked("г. Саратов")
+    assert "г." in _masked(CITY_MARKER)
 
-    doc2 = Document.from_text("12 марта 1985 года")
+    doc2 = Document.from_text(DATE_WORDS)
     span2 = next(iter(recognizer.find(doc2)))
     assert doc2.text[span2.start : span2.end] == "12 марта 1985"
-    assert "года" in _masked("12 марта 1985 года")
+    assert "года" in _masked(DATE_WORDS)
 
 
 def test_standalone_whitespace_stripped() -> None:

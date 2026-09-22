@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 import pytest
 import redis.exceptions
 from fakeredis import aioredis as fakeredis
@@ -37,7 +39,7 @@ def memory_store(cipher: RecordCipher) -> MemoryStore:
 
 
 @pytest.fixture
-async def redis_store(cipher: RecordCipher) -> RedisStore:
+async def redis_store(cipher: RecordCipher) -> AsyncIterator[RedisStore]:
     client = fakeredis.FakeRedis()
     store = RedisStore(client, cipher)
     yield store
@@ -65,8 +67,9 @@ class TestCrypto:
     def test_decode_key_wrong_length_raises(self) -> None:
         import base64
 
+        encoded = base64.b64encode(b"short").decode()
         with pytest.raises(ValueError):
-            decode_key(base64.b64encode(b"short").decode())
+            decode_key(encoded)
 
     def test_decode_key_none_generates_32_bytes(self) -> None:
         key = decode_key(None)
@@ -174,6 +177,7 @@ class _FakeStore:
         return True
 
     async def close(self) -> None:
+        # Фейковому клиенту нечего освобождать.
         pass
 
 

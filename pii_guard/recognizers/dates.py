@@ -67,7 +67,7 @@ WORDS_DATE_RE = re.compile(
 YEAR_WORDS_ONLY_RE = re.compile(rf"(?<!\w)({YEAR_WORDS})\s+(?:году|года|год|г\.|г)(?!\w)")
 YEAR_GR_RE = re.compile(r"(?<!\d)(\d{4})\s*(?:г\.\s*р\.|года\s+рождения)(?!\w)")
 YEAR_NUMERIC_RE = re.compile(r"(?<!\d)(\d{4})\s+(?:году|года|г\.)(?!\w)")
-YEAR_AFTER_GR_RE = re.compile(r"(?<!\w)(?:г\.\s*р\.|год\s+рождения)\s*[:]?\s*(\d{4})(?!\d)")
+YEAR_AFTER_GR_RE = re.compile(r"(?<!\w)(?:г\.\s*р\.|год\s+рождения)\s*:?\s*(\d{4})(?!\d)")
 
 BIRTH_CONTEXT = compile_keywords(
     [
@@ -147,14 +147,14 @@ class DateRecognizer(Recognizer):
         for match in WORDS_DATE_RE.finditer(doc.norm):
             self._collect(spans, self._classify_words(doc, match.start(1), match.end(1)))
         for match in YEAR_WORDS_ONLY_RE.finditer(doc.norm):
-            self._collect(spans, self._classify_year_only(doc, match.start(1), match.end(1)))
+            self._collect(spans, self._classify_words(doc, match.start(1), match.end(1)))
         for match in YEAR_GR_RE.finditer(doc.norm):
             # маркер «г.р.» входит в само совпадение, контекст искать не нужно
             spans.append(Span(match.start(1), match.end(1), "BIRTH_DATE", 0.9, self.name))
         for match in YEAR_AFTER_GR_RE.finditer(doc.norm):
             spans.append(Span(match.start(1), match.end(1), "BIRTH_DATE", 0.9, self.name))
         for match in YEAR_NUMERIC_RE.finditer(doc.norm):
-            self._collect(spans, self._classify_year_only(doc, match.start(1), match.end(1)))
+            self._collect(spans, self._classify_words(doc, match.start(1), match.end(1)))
         return spans
 
     @staticmethod
@@ -194,14 +194,6 @@ class DateRecognizer(Recognizer):
         return None
 
     def _classify_words(self, doc: Document, start: int, end: int) -> Span | None:
-        pii_type = self._context_type(doc, start, end)
-        if pii_type is not None:
-            return Span(start, end, pii_type, 0.9, self.name)
-        if public_figure_context(doc, start):
-            return None
-        return Span(start, end, "BIRTH_DATE", 0.4, self.name)
-
-    def _classify_year_only(self, doc: Document, start: int, end: int) -> Span | None:
         pii_type = self._context_type(doc, start, end)
         if pii_type is not None:
             return Span(start, end, pii_type, 0.9, self.name)

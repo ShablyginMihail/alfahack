@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import binascii
 import hashlib
 import hmac
 import os
@@ -20,7 +19,7 @@ def decode_key(value: str | None) -> bytes:
         return secrets.token_bytes(_KEY_BYTES)
     try:
         key = base64.b64decode(value, validate=True)
-    except (ValueError, binascii.Error) as exc:
+    except ValueError as exc:
         raise ValueError("key must be base64-encoded") from exc
     if len(key) != _KEY_BYTES:
         raise ValueError(f"key must decode to {_KEY_BYTES} bytes")

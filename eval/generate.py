@@ -5,6 +5,13 @@ import random
 from pathlib import Path
 from typing import ClassVar
 
+YEAR_SUFFIX = " года"
+PASSPORT_PREFIX = "Паспорт "
+ISSUED_PREFIX = "Выдан "
+STREET_SEP = ", ул. "
+HOUSE_SEP = ", д. "
+CARD_PREFIX = "Карта "
+
 MALE_NAMES = [
     "иван",
     "петр",
@@ -330,10 +337,10 @@ class Generator:
         date = self._birth_date()
         templates = [
             [("Дата рождения ", None), (date, "BIRTH_DATE")],
-            [("Родился ", None), (date, "BIRTH_DATE"), (" года", None)],
+            [("Родился ", None), (date, "BIRTH_DATE"), (YEAR_SUFFIX, None)],
             [(date, "BIRTH_DATE"), (" день рождения", None)],
-            [("Родилась ", None), (date, "BIRTH_DATE"), (" года", None)],
-            [("Дата рождения: ", None), (date, "BIRTH_DATE"), (" года", None)],
+            [("Родилась ", None), (date, "BIRTH_DATE"), (YEAR_SUFFIX, None)],
+            [("Дата рождения: ", None), (date, "BIRTH_DATE"), (YEAR_SUFFIX, None)],
         ]
         return self.rng.choice(templates)
 
@@ -353,14 +360,14 @@ class Generator:
         templates = [
             [("Паспорт ", None), (f"{series} {number}", "PASSPORT"), (" выдан", None)],
             [("Серия ", None), (series, "PASSPORT"), (" номер ", None), (number, "PASSPORT")],
-            [("Паспорт ", None), (f"{series[:2]} {series[2:]} {number}", "PASSPORT")],
+            [(PASSPORT_PREFIX, None), (f"{series[:2]} {series[2:]} {number}", "PASSPORT")],
             [
                 ("Серия паспорта: ", None),
                 (f"{series[:2]} {series[2:]}", "PASSPORT"),
                 (", номер: ", None),
                 (number, "PASSPORT"),
             ],
-            [("Паспорт ", None), (f"{series}-{number}", "PASSPORT")],
+            [(PASSPORT_PREFIX, None), (f"{series}-{number}", "PASSPORT")],
         ]
         return self.rng.choice(templates)
 
@@ -378,10 +385,10 @@ class Generator:
         city = self.rng.choice(CITIES)
         region = self.rng.choice(REGIONS)
         templates = [
-            [("Выдан ", None), (f"ОУФМС России по г. {city}", "PASSPORT_ISSUER")],
+            [(ISSUED_PREFIX, None), (f"ОУФМС России по г. {city}", "PASSPORT_ISSUER")],
             [("Паспорт выдан ", None), (f"Отделом УФМС России по {region}", "PASSPORT_ISSUER")],
             [("Кем выдан: ", None), (f"ГУ МВД России по {region}", "PASSPORT_ISSUER")],
-            [("Выдан ", None), (f"ТП УФМС России по г. {city}", "PASSPORT_ISSUER")],
+            [(ISSUED_PREFIX, None), (f"ТП УФМС России по г. {city}", "PASSPORT_ISSUER")],
         ]
         return self.rng.choice(templates)
 
@@ -399,7 +406,7 @@ class Generator:
         templates = [
             [("Паспорт выдан ", None), (date, "PASSPORT_ISSUE_DATE")],
             [("Дата выдачи ", None), (date, "PASSPORT_ISSUE_DATE")],
-            [("Выдан ", None), (date, "PASSPORT_ISSUE_DATE"), (" г.", None)],
+            [(ISSUED_PREFIX, None), (date, "PASSPORT_ISSUE_DATE"), (" г.", None)],
         ]
         return self.rng.choice(templates)
 
@@ -450,9 +457,9 @@ class Generator:
                 (index, "ADDRESS"),
                 (", г. ", None),
                 (city, "ADDRESS"),
-                (", ул. ", None),
+                (STREET_SEP, None),
                 (street, "ADDRESS"),
-                (", д. ", None),
+                (HOUSE_SEP, None),
                 (house, "ADDRESS"),
                 (", кв. ", None),
                 (apartment, "ADDRESS"),
@@ -462,9 +469,9 @@ class Generator:
                 *self._region_segments(),
                 (", г. ", None),
                 (city, "ADDRESS"),
-                (", ул. ", None),
+                (STREET_SEP, None),
                 (street, "ADDRESS"),
-                (", д. ", None),
+                (HOUSE_SEP, None),
                 (house, "ADDRESS"),
                 (", кв. ", None),
                 (apartment, "ADDRESS"),
@@ -472,9 +479,9 @@ class Generator:
             [
                 ("г. ", None),
                 (city, "ADDRESS"),
-                (", ул. ", None),
+                (STREET_SEP, None),
                 (street, "ADDRESS"),
-                (", д. ", None),
+                (HOUSE_SEP, None),
                 (house, "ADDRESS"),
             ],
             [("Индекс ", None), (index, "ADDRESS")],
@@ -516,10 +523,10 @@ class Generator:
     def _card_phrase(self) -> list[tuple[str, str | None]]:
         card = self._card()
         templates = [
-            [("Карта ", None), (card, "CARD_NUMBER")],
+            [(CARD_PREFIX, None), (card, "CARD_NUMBER")],
             [("Номер карты ", None), (card, "CARD_NUMBER")],
             [("Visa ", None), (card, "CARD_NUMBER")],
-            [("Карта ", None), (card.replace(" ", "-"), "CARD_NUMBER")],
+            [(CARD_PREFIX, None), (card.replace(" ", "-"), "CARD_NUMBER")],
         ]
         return self.rng.choice(templates)
 
@@ -550,7 +557,12 @@ class Generator:
         templates = [
             [("Держатель карты ", None), (latin, "CARDHOLDER")],
             [("Имя на карте: ", None), (latin.lower(), "CARDHOLDER")],
-            [("Карта ", None), (self._card(), "CARD_NUMBER"), (", ", None), (latin, "CARDHOLDER")],
+            [
+                (CARD_PREFIX, None),
+                (self._card(), "CARD_NUMBER"),
+                (", ", None),
+                (latin, "CARDHOLDER"),
+            ],
             [("Держатель карты ", None), (cyrillic, "CARDHOLDER")],
         ]
         return self.rng.choice(templates)

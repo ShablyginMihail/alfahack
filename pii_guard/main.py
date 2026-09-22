@@ -32,6 +32,7 @@ from pii_guard.store.redis_store import RedisStore, create_redis_client
 
 logger = get_logger("pii_guard.request")
 
+_RESPONSE_START = "http.response.start"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
@@ -60,7 +61,7 @@ class RequestContextMiddleware:
 
         async def send_wrapper(message: Message) -> None:
             nonlocal status, response_started
-            if message["type"] == "http.response.start":
+            if message["type"] == _RESPONSE_START:
                 response_started = True
                 status = message.get("status", 500)
                 headers = list(message.get("headers", []))
@@ -113,7 +114,7 @@ class RequestContextMiddleware:
         body = b'{"error": "internal_error", "request_id": "' + request_id.encode("latin-1") + b'"}'
         await send(
             {
-                "type": "http.response.start",
+                "type": _RESPONSE_START,
                 "status": 500,
                 "headers": [
                     (b"content-type", b"application/json"),
@@ -151,7 +152,7 @@ class BodyLimitMiddleware:
         body = b'{"error": "payload_too_large"}'
         await send(
             {
-                "type": "http.response.start",
+                "type": _RESPONSE_START,
                 "status": 413,
                 "headers": [
                     (b"content-type", b"application/json"),

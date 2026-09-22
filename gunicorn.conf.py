@@ -16,12 +16,12 @@ accesslog = None
 errorlog = "-"
 
 
-def on_starting(server) -> None:
+def on_starting(_server) -> None:
     multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
     if multiproc_dir:
         shutil.rmtree(multiproc_dir, ignore_errors=True)
         os.makedirs(multiproc_dir, exist_ok=True)
 
 
-def child_exit(server, worker) -> None:
+def child_exit(_server, worker) -> None:
     multiprocess.mark_process_dead(worker.pid)

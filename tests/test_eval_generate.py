@@ -4,7 +4,9 @@ from pii_guard.recognizers.validators import digits, inn_valid, luhn_valid, snil
 
 
 def test_deterministic() -> None:
-    assert Generator(42).generate(5) == Generator(42).generate(5)
+    first = Generator(42).generate(5)
+    second = Generator(42).generate(5)
+    assert first == second
 
 
 def test_parseable() -> None:

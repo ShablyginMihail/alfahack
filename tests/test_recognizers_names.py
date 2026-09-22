@@ -5,6 +5,8 @@ from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
 from tests.helpers import PARTIAL_PROFILE
 
+ANNA_SERGEEVNA = "Анна Сергеевна"
+
 
 def _engine() -> Engine:
     registry = RecognizerRegistry.from_modules(Settings().recognizer_modules)
@@ -53,7 +55,7 @@ def test_initials_surn() -> None:
 
 
 def test_name_patr() -> None:
-    assert _has_person("Анна Сергеевна")
+    assert _has_person(ANNA_SERGEEVNA)
 
 
 def test_name_surn() -> None:
@@ -212,12 +214,12 @@ def test_surname_not_in_dict_extended() -> None:
 
 def test_name_patr_not_extended_to_verb() -> None:
     _span_at("Вера Николаевна ждёт ответа", "Вера Николаевна", "PERSON")
-    _span_at("Анна Сергеевна позвонила вчера", "Анна Сергеевна", "PERSON")
+    _span_at(ANNA_SERGEEVNA + " позвонила вчера", ANNA_SERGEEVNA, "PERSON")
 
 
 def test_left_extension_not_at_sentence_start_word() -> None:
-    _span_at("Клиентка Анна Сергеевна звонила", "Анна Сергеевна", "PERSON")
-    _span_at("Менеджер Анна Сергеевна согласовала заявку", "Анна Сергеевна", "PERSON")
+    _span_at("Клиентка " + ANNA_SERGEEVNA + " звонила", ANNA_SERGEEVNA, "PERSON")
+    _span_at("Менеджер " + ANNA_SERGEEVNA + " согласовала заявку", ANNA_SERGEEVNA, "PERSON")
 
 
 def test_left_extension_surname_at_sentence_start() -> None:

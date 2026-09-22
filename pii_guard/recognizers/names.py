@@ -255,7 +255,7 @@ PATTERNS: tuple[tuple[tuple[str, ...], float], ...] = (
 )
 
 LATIN_NAME_RE = re.compile(
-    r"(?<!\w)([a-z]{2,}(?:['-][a-z]{2,})*)(?:\s+([a-z]{2,}(?:['-][a-z]{2,})*))(?:\s+([a-z]{2,}(?:['-][a-z]{2,})*))?(?!\w)"
+    r"(?<!\w)([a-z]{2,}(?:['-][a-z]{2,})*)\s+([a-z]{2,}(?:['-][a-z]{2,})*)(?:\s+([a-z]{2,}(?:['-][a-z]{2,})*))?(?!\w)"
 )
 CARD_NUMBER_RE = re.compile(r"(?<!\d)(?:\d[\s-]?){12,18}\d(?!\d)")
 _LATIN_SURN_END = re.compile(r"(?:ov|ev|in|ova|eva|ina|sky|skaya)$")

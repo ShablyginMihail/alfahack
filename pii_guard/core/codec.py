@@ -38,7 +38,7 @@ def decode_record(data: bytes) -> MappingRecord:
         if not isinstance(raw_replacements, list):
             raise ValueError
         replacements = tuple(_decode_replacement(item) for item in raw_replacements)
-    except (KeyError, IndexError, TypeError, ValueError, orjson.JSONDecodeError) as exc:
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise ValueError("invalid mapping record") from exc
     return MappingRecord(
         original_fp=original_fp,

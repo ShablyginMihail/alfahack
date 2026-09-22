@@ -10,6 +10,8 @@ from pii_guard.core.registry import Recognizer
 from pii_guard.recognizers.base import FIELD_LABELS, PatternRule, RegexRecognizer, cut_period
 from pii_guard.recognizers.validators import snils_valid
 
+PASSPORT_WORD = "паспорт"
+
 PASSPORT_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?(?:№\s*)?\d{6}(?!\d)")
 PASSPORT_RUN_RE = re.compile(r"(?<!\d)\d{10}(?!\d)")
 PASSPORT_SERIES_RE = re.compile(
@@ -31,14 +33,14 @@ SNILS_RUN_RE = re.compile(r"(?<!\d)\d{11}(?!\d)")
 
 FOREIGN_PASSPORT_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{7}(?!\d)")
 
-PASSPORT_CONTEXT = compile_keywords(["паспорт", "серия", "серии", "номер паспорта", "пасп"])
+PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD, "серия", "серии", "номер паспорта", "пасп"])
 PASSPORT_COMBINED_CONTEXT = compile_keywords(
-    ["паспорт", "серия", "серии", "номер паспорта", "пасп", "выдан"]
+    [PASSPORT_WORD, "серия", "серии", "номер паспорта", "пасп", "выдан"]
 )
 DIVISION_CONTEXT = compile_keywords(
     ["код подразделения", "подразделени", "код подр", "к/п", "к.п.", "кп"]
 )
-DIVISION_PASSPORT_CONTEXT = compile_keywords(["паспорт", "выдан"])
+DIVISION_PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD, "выдан"])
 DRIVER_CONTEXT = compile_keywords(["водительск", "ву", "в/у", "права", "удостоверени"])
 SNILS_CONTEXT = compile_keywords(["снилс", "страхов"])
 FOREIGN_CONTEXT = compile_keywords(["загран", "заграничн"])
@@ -56,7 +58,7 @@ ISSUER_DATE_RE = re.compile(r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[а-яё
 ISSUER_DIVISION_RE = re.compile(r"\d{3}-\d{3}")
 ISSUER_TERMINATORS = ("код подразделения", "к/п", "дата выдачи")
 ORGAN_PHRASE_RE = re.compile(rf"(?<!\w)({ORGAN_MARKERS}(?:\s+[а-яё0-9-]+){{1,6}})(?!\w)")
-ISSUER_PASSPORT_CONTEXT = compile_keywords(["паспорт"])
+ISSUER_PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD])
 _MAX_ISSUER = 150
 
 
