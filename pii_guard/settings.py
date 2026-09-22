@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     encryption_key: SecretStr | None = None
     hmac_key: SecretStr | None = None
     max_body_bytes: int = 4_000_000
-    max_concurrent_process: int = 32
+    max_concurrent_process: int = 100
     retry_after_seconds: int = 1
     log_level: str = "INFO"
     config_dir: Path = Path("config")
