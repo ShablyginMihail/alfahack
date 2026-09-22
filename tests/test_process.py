@@ -8,6 +8,7 @@ from fakeredis.aioredis import FakeRedis
 from httpx import ASGITransport, AsyncClient
 
 from pii_guard.config.loader import ConfigStore
+from pii_guard.core.concurrency import ConcurrencyGate
 from pii_guard.main import create_app
 from pii_guard.services.process import ProcessService
 from pii_guard.settings import Settings
@@ -172,3 +173,33 @@ async def test_full_mask_roundtrip(tmp_path) -> None:
         resp2 = await client.post("/process", json={"payload": masked, "payload_id": "full-1"})
         assert resp2.status_code == 200
         assert resp2.json()["result"] == text
+
+
+def test_concurrency_gate_limits_and_releases() -> None:
+    gate = ConcurrencyGate(limit=2)
+    assert gate.try_enter() is True
+    assert gate.try_enter() is True
+    assert gate.try_enter() is False
+    gate.exit()
+    assert gate.try_enter() is True
+    assert gate.try_enter() is False
+
+
+@pytest.mark.asyncio
+async def test_process_overloaded_returns_429(tmp_path) -> None:
+    settings = make_settings(tmp_path, max_concurrent_process=1)
+    app = create_app(settings)
+    async with _start_lifespan(app), await _client(app) as client:
+        gate = app.state.concurrency_gate
+        assert gate.try_enter() is True
+        resp = await client.post(
+            "/process", json={"payload": "email ivanov@mail.ru", "payload_id": "id-7"}
+        )
+        assert resp.status_code == 429
+        assert resp.json() == {"error": "overloaded"}
+        assert resp.headers["retry-after"] == "1"
+        gate.exit()
+        resp2 = await client.post(
+            "/process", json={"payload": "email ivanov@mail.ru", "payload_id": "id-7"}
+        )
+        assert resp2.status_code == 200

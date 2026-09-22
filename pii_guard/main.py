@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from pii_guard.api import admin, errors, health, mask, metrics, process, ui
 from pii_guard.config.loader import ConfigStore
+from pii_guard.core.concurrency import ConcurrencyGate
 from pii_guard.core.engine import Engine
 from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.observability.logging import configure_logging, get_logger
@@ -210,6 +211,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.concurrency_gate = ConcurrencyGate(settings.max_concurrent_process)
 
     app.add_middleware(BodyLimitMiddleware, max_body_bytes=settings.max_body_bytes)
     app.add_middleware(RequestContextMiddleware)

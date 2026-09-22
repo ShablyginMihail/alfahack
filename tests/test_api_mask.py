@@ -248,3 +248,59 @@ async def test_process_with_checker_profile(tmp_path) -> None:
         resp2 = await client.post("/process", json={"payload": masked, "payload_id": "p-1"})
         assert resp2.status_code == 200
         assert resp2.json()["result"] == text
+
+
+@pytest.mark.asyncio
+async def test_mask_overloaded_returns_429(tmp_path) -> None:
+    settings = _settings(tmp_path, max_concurrent_process=1)
+    app = create_app(settings)
+    transport = ASGITransport(app=app)
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=transport, base_url="http://test") as client,
+    ):
+        gate = app.state.concurrency_gate
+        assert gate.try_enter() is True
+        resp = await client.post(
+            "/api/v1/mask",
+            json={"text": "email ivanov@mail.ru"},
+            headers={"X-API-Key": TOKEN_KEY},
+        )
+        assert resp.status_code == 429
+        assert resp.json() == {"error": "overloaded"}
+        assert resp.headers["retry-after"] == "1"
+        gate.exit()
+        resp2 = await client.post(
+            "/api/v1/mask",
+            json={"text": "email ivanov@mail.ru"},
+            headers={"X-API-Key": TOKEN_KEY},
+        )
+        assert resp2.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_unmask_overloaded_returns_429(tmp_path) -> None:
+    settings = _settings(tmp_path, max_concurrent_process=1)
+    app = create_app(settings)
+    transport = ASGITransport(app=app)
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=transport, base_url="http://test") as client,
+    ):
+        gate = app.state.concurrency_gate
+        assert gate.try_enter() is True
+        resp = await client.post(
+            "/api/v1/unmask",
+            json={"session_id": "sess", "text": "text"},
+            headers={"X-API-Key": TOKEN_KEY},
+        )
+        assert resp.status_code == 429
+        assert resp.json() == {"error": "overloaded"}
+        assert resp.headers["retry-after"] == "1"
+        gate.exit()
+        resp2 = await client.post(
+            "/api/v1/unmask",
+            json={"session_id": "sess", "text": "text"},
+            headers={"X-API-Key": TOKEN_KEY},
+        )
+        assert resp2.status_code == 404

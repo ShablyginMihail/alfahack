@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hmac
 import time
 from dataclasses import dataclass
@@ -50,9 +51,9 @@ class ProcessService:
             )
 
         if payload == record.masked_text:
-            return self._unmask(profile, record, payload, "unmask")
+            return await self._unmask(profile, record, payload, "unmask")
 
-        return self._unmask(profile, record, payload, "unmask_changed")
+        return await self._unmask(profile, record, payload, "unmask_changed")
 
     async def _store_get(self, key: str) -> MappingRecord | None:
         start = time.perf_counter()
@@ -65,7 +66,7 @@ class ProcessService:
         self, engine: Engine, profile: Profile, payload_id: str, payload: str
     ) -> ProcessOutcome:
         start = time.perf_counter()
-        masked = engine.mask(payload, profile)
+        masked = await asyncio.to_thread(engine.mask, payload, profile)
         observe_stage("detect_mask", time.perf_counter() - start)
         record = MappingRecord(
             original_fp=self._cipher.fingerprint(payload),
@@ -82,7 +83,7 @@ class ProcessService:
             type_counts=self._counts(stored),
         )
 
-    def _unmask(
+    async def _unmask(
         self, profile: Profile, record: MappingRecord, payload: str, direction: str
     ) -> ProcessOutcome:
         if not profile.unmask:
@@ -92,7 +93,7 @@ class ProcessService:
                 type_counts=self._counts(record),
             )
         start = time.perf_counter()
-        result = unmask(payload, record)
+        result = await asyncio.to_thread(unmask, payload, record)
         observe_stage("unmask", time.perf_counter() - start)
         return ProcessOutcome(
             result=result,
