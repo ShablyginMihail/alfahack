@@ -1,4 +1,7 @@
 import pytest
+from httpx import ASGITransport, AsyncClient
+
+from pii_guard.main import create_app
 
 PAYLOAD_MARKER = "СЕКРЕТНЫЕ_ДАННЫЕ_12345"
 
@@ -69,3 +72,42 @@ async def test_request_id_passthrough(client):
     resp = await client.get("/health", headers={"X-Request-ID": "my-custom-id"})
     assert resp.status_code == 200
     assert resp.headers.get("x-request-id") == "my-custom-id"
+
+
+@pytest.mark.asyncio
+async def test_request_id_too_long_replaced(client):
+    resp = await client.get("/health", headers={"X-Request-ID": "x" * 100})
+    assert resp.status_code == 200
+    rid = resp.headers.get("x-request-id")
+    assert rid and len(rid) == 32
+
+
+@pytest.mark.asyncio
+async def test_request_id_with_space_replaced(client):
+    resp = await client.get("/health", headers={"X-Request-ID": "bad id"})
+    assert resp.status_code == 200
+    rid = resp.headers.get("x-request-id")
+    assert rid and len(rid) == 32
+
+
+@pytest.mark.asyncio
+async def test_unhandled_exception_no_leak(settings, capsys):
+    app = create_app(settings)
+
+    @app.get("/boom")
+    async def boom():
+        raise RuntimeError("СЕКРЕТ_123")
+
+    transport = ASGITransport(app=app, raise_app_exceptions=True)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/boom", headers={"X-Request-ID": "req-123"})
+
+    assert resp.status_code == 500
+    body = resp.json()
+    assert body["error"] == "internal_error"
+    assert body["request_id"] == "req-123"
+    assert resp.headers.get("x-request-id") == "req-123"
+
+    captured = capsys.readouterr()
+    assert "СЕКРЕТ_123" not in captured.out
+    assert "СЕКРЕТ_123" not in captured.err
