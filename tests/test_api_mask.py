@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 from contextlib import asynccontextmanager
 
 import pytest
@@ -10,11 +11,18 @@ from pii_guard.main import create_app
 from pii_guard.settings import Settings
 from tests.helpers import make_settings, write_config
 
-TOKEN_KEY = "token-key"
-LABEL_KEY = "label-key"
-OTHER_TOKEN_KEY = "other-token-key"
-DISABLED_KEY = "disabled-key"
+TOKEN_KEY = secrets.token_urlsafe(16)
+LABEL_KEY = secrets.token_urlsafe(16)
+OTHER_TOKEN_KEY = secrets.token_urlsafe(16)
+DISABLED_KEY = secrets.token_urlsafe(16)
 ADMIN_TOKEN = "admin-secret"
+
+EMAIL_TEXT = "email ivanov@mail.ru"
+EMAIL_PASSPORT_TEXT = "email ivanov@mail.ru, паспорт 4509 123456"
+ADMIN_CONFIG_PATH = "/admin/config"
+TEST_BASE_URL = "http://test"
+MASK_PATH = "/api/v1/mask"
+UNMASK_PATH = "/api/v1/unmask"
 
 
 def _sha(key: str) -> str:
@@ -73,7 +81,7 @@ async def _client_for(settings: Settings):
     transport = ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
-        AsyncClient(transport=transport, base_url="http://test") as c,
+        AsyncClient(transport=transport, base_url=TEST_BASE_URL) as c,
     ):
         yield c
 
@@ -83,8 +91,8 @@ async def test_token_roundtrip(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as client:
         headers = {"X-API-Key": TOKEN_KEY}
-        text = "email ivanov@mail.ru, паспорт 4509 123456"
-        resp = await client.post("/api/v1/mask", json={"text": text}, headers=headers)
+        text = EMAIL_PASSPORT_TEXT
+        resp = await client.post(MASK_PATH, json={"text": text}, headers=headers)
         assert resp.status_code == 200
         body = resp.json()
         masked = body["masked_text"]
@@ -94,7 +102,7 @@ async def test_token_roundtrip(tmp_path) -> None:
         assert "[ПАСПОРТ_1]" in masked
 
         unmask = await client.post(
-            "/api/v1/unmask",
+            UNMASK_PATH,
             json={"session_id": body["session_id"], "text": masked},
             headers=headers,
         )
@@ -107,8 +115,8 @@ async def test_label_style_unmask_disabled(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as client:
         headers = {"X-API-Key": LABEL_KEY}
-        text = "email ivanov@mail.ru, паспорт 4509 123456"
-        resp = await client.post("/api/v1/mask", json={"text": text}, headers=headers)
+        text = EMAIL_PASSPORT_TEXT
+        resp = await client.post(MASK_PATH, json={"text": text}, headers=headers)
         assert resp.status_code == 200
         body = resp.json()
         masked = body["masked_text"]
@@ -116,7 +124,7 @@ async def test_label_style_unmask_disabled(tmp_path) -> None:
         assert "4509 123456" in masked
 
         unmask = await client.post(
-            "/api/v1/unmask",
+            UNMASK_PATH,
             json={"session_id": body["session_id"], "text": masked},
             headers=headers,
         )
@@ -128,7 +136,7 @@ async def test_label_style_unmask_disabled(tmp_path) -> None:
 async def test_missing_api_key(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as client:
-        resp = await client.post("/api/v1/mask", json={"text": "email ivanov@mail.ru"})
+        resp = await client.post(MASK_PATH, json={"text": EMAIL_TEXT})
         assert resp.status_code == 401
         assert resp.json() == {"error": "missing_api_key"}
 
@@ -138,8 +146,8 @@ async def test_wrong_api_key(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as client:
         resp = await client.post(
-            "/api/v1/mask",
-            json={"text": "email ivanov@mail.ru"},
+            MASK_PATH,
+            json={"text": EMAIL_TEXT},
             headers={"X-API-Key": "wrong-key"},
         )
         assert resp.status_code == 401
@@ -151,8 +159,8 @@ async def test_disabled_system(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as client:
         resp = await client.post(
-            "/api/v1/mask",
-            json={"text": "email ivanov@mail.ru"},
+            MASK_PATH,
+            json={"text": EMAIL_TEXT},
             headers={"X-API-Key": DISABLED_KEY},
         )
         assert resp.status_code == 403
@@ -165,13 +173,13 @@ async def test_session_id_not_shared_between_systems(tmp_path) -> None:
     async with _client_for(settings) as client:
         token_headers = {"X-API-Key": TOKEN_KEY}
         other_headers = {"X-API-Key": OTHER_TOKEN_KEY}
-        text = "email ivanov@mail.ru"
-        resp = await client.post("/api/v1/mask", json={"text": text}, headers=token_headers)
+        text = EMAIL_TEXT
+        resp = await client.post(MASK_PATH, json={"text": text}, headers=token_headers)
         session_id = resp.json()["session_id"]
         masked = resp.json()["masked_text"]
 
         unmask = await client.post(
-            "/api/v1/unmask",
+            UNMASK_PATH,
             json={"session_id": session_id, "text": masked},
             headers=other_headers,
         )
@@ -183,7 +191,7 @@ async def test_session_id_not_shared_between_systems(tmp_path) -> None:
 async def test_admin_config_no_token_404(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as client:
-        resp = await client.get("/admin/config")
+        resp = await client.get(ADMIN_CONFIG_PATH)
         assert resp.status_code == 404
         assert resp.json() == {"error": "not_found"}
 
@@ -192,7 +200,7 @@ async def test_admin_config_no_token_404(tmp_path) -> None:
 async def test_admin_config_wrong_token_401(tmp_path) -> None:
     settings = _settings(tmp_path, admin_token=ADMIN_TOKEN)
     async with _client_for(settings) as client:
-        resp = await client.get("/admin/config", headers={"X-Admin-Token": "wrong"})
+        resp = await client.get(ADMIN_CONFIG_PATH, headers={"X-Admin-Token": "wrong"})
         assert resp.status_code == 401
         assert resp.json() == {"error": "invalid_admin_token"}
 
@@ -201,7 +209,7 @@ async def test_admin_config_wrong_token_401(tmp_path) -> None:
 async def test_admin_config_ok_no_key_hashes(tmp_path) -> None:
     settings = _settings(tmp_path, admin_token=ADMIN_TOKEN)
     async with _client_for(settings) as client:
-        resp = await client.get("/admin/config", headers={"X-Admin-Token": ADMIN_TOKEN})
+        resp = await client.get(ADMIN_CONFIG_PATH, headers={"X-Admin-Token": ADMIN_TOKEN})
         assert resp.status_code == 200
         body = resp.json()
         assert "token-sys" in body["systems"]
@@ -219,7 +227,7 @@ async def test_admin_reload_picks_up_changes(tmp_path) -> None:
         headers = {"X-Admin-Token": ADMIN_TOKEN}
         config_dir = settings.config_dir
 
-        resp = await client.get("/admin/config", headers=headers)
+        resp = await client.get(ADMIN_CONFIG_PATH, headers=headers)
         assert resp.json()["systems"]["token-sys"]["mask_style"] == "token"
 
         systems = _systems_config()
@@ -230,7 +238,7 @@ async def test_admin_reload_picks_up_changes(tmp_path) -> None:
         assert reload.status_code == 200
         assert reload.json() == {"status": "reloaded"}
 
-        resp2 = await client.get("/admin/config", headers=headers)
+        resp2 = await client.get(ADMIN_CONFIG_PATH, headers=headers)
         assert resp2.json()["systems"]["token-sys"]["mask_style"] == "label"
 
 
@@ -238,7 +246,7 @@ async def test_admin_reload_picks_up_changes(tmp_path) -> None:
 async def test_process_with_checker_profile(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as client:
-        text = "email ivanov@mail.ru, паспорт 4509 123456"
+        text = EMAIL_PASSPORT_TEXT
         resp = await client.post("/process", json={"payload": text, "payload_id": "p-1"})
         assert resp.status_code == 200
         masked = resp.json()["result"]
@@ -257,13 +265,13 @@ async def test_mask_overloaded_returns_429(tmp_path) -> None:
     transport = ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
-        AsyncClient(transport=transport, base_url="http://test") as client,
+        AsyncClient(transport=transport, base_url=TEST_BASE_URL) as client,
     ):
         gate = app.state.concurrency_gate
         assert gate.try_enter() is True
         resp = await client.post(
-            "/api/v1/mask",
-            json={"text": "email ivanov@mail.ru"},
+            MASK_PATH,
+            json={"text": EMAIL_TEXT},
             headers={"X-API-Key": TOKEN_KEY},
         )
         assert resp.status_code == 429
@@ -271,8 +279,8 @@ async def test_mask_overloaded_returns_429(tmp_path) -> None:
         assert resp.headers["retry-after"] == "1"
         gate.exit()
         resp2 = await client.post(
-            "/api/v1/mask",
-            json={"text": "email ivanov@mail.ru"},
+            MASK_PATH,
+            json={"text": EMAIL_TEXT},
             headers={"X-API-Key": TOKEN_KEY},
         )
         assert resp2.status_code == 200
@@ -285,12 +293,12 @@ async def test_unmask_overloaded_returns_429(tmp_path) -> None:
     transport = ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
-        AsyncClient(transport=transport, base_url="http://test") as client,
+        AsyncClient(transport=transport, base_url=TEST_BASE_URL) as client,
     ):
         gate = app.state.concurrency_gate
         assert gate.try_enter() is True
         resp = await client.post(
-            "/api/v1/unmask",
+            UNMASK_PATH,
             json={"session_id": "sess", "text": "text"},
             headers={"X-API-Key": TOKEN_KEY},
         )
@@ -299,7 +307,7 @@ async def test_unmask_overloaded_returns_429(tmp_path) -> None:
         assert resp.headers["retry-after"] == "1"
         gate.exit()
         resp2 = await client.post(
-            "/api/v1/unmask",
+            UNMASK_PATH,
             json={"session_id": "sess", "text": "text"},
             headers={"X-API-Key": TOKEN_KEY},
         )

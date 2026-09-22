@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 from contextlib import asynccontextmanager
 
 import pytest
@@ -11,8 +12,12 @@ from pii_guard.main import create_app
 from pii_guard.settings import Settings
 from tests.helpers import make_settings, write_config
 
-TOKEN_KEY = "token-key"
-NO_UNMASK_KEY = "no-unmask-key"
+TOKEN_KEY = secrets.token_urlsafe(16)
+NO_UNMASK_KEY = secrets.token_urlsafe(16)
+
+CHAT_PATH = "/v1/chat/completions"
+IVANOV = "Иванов"
+IVANOV_FULL = "Иванов Иван Иванович"
 
 
 def _sha(key: str) -> str:
@@ -80,17 +85,17 @@ async def test_chat_token_unmask_roundtrip(tmp_path) -> None:
     async with _client_for(settings) as (_app, client):
         content = "Клиент Иванов Иван Иванович, телефон +7 916 123-45-67"
         resp = await client.post(
-            "/v1/chat/completions",
+            CHAT_PATH,
             json=_chat([{"role": "user", "content": content}]),
             headers={"X-API-Key": TOKEN_KEY},
         )
         assert resp.status_code == 200
         body = resp.json()
         masked = body["pii_guard"]["masked_messages"][0]["content"]
-        assert "Иванов" not in masked
+        assert IVANOV not in masked
         assert "916" not in masked
         answer = body["choices"][0]["message"]["content"]
-        assert "Иванов Иван Иванович" in answer
+        assert IVANOV_FULL in answer
         assert "+7 916 123-45-67" in answer
 
 
@@ -99,11 +104,11 @@ async def test_chat_same_token_across_messages(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as (_app, client):
         resp = await client.post(
-            "/v1/chat/completions",
+            CHAT_PATH,
             json=_chat(
                 [
-                    {"role": "user", "content": "Иванов Иван Иванович"},
-                    {"role": "user", "content": "Иванов Иван Иванович"},
+                    {"role": "user", "content": IVANOV_FULL},
+                    {"role": "user", "content": IVANOV_FULL},
                 ]
             ),
             headers={"X-API-Key": TOKEN_KEY},
@@ -111,7 +116,7 @@ async def test_chat_same_token_across_messages(tmp_path) -> None:
         assert resp.status_code == 200
         masked = resp.json()["pii_guard"]["masked_messages"]
         assert masked[0]["content"] == masked[1]["content"]
-        assert "Иванов" not in masked[0]["content"]
+        assert IVANOV not in masked[0]["content"]
 
 
 @pytest.mark.asyncio
@@ -119,13 +124,13 @@ async def test_chat_unmask_disabled_keeps_masks(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as (_app, client):
         resp = await client.post(
-            "/v1/chat/completions",
-            json=_chat([{"role": "user", "content": "Иванов Иван Иванович"}]),
+            CHAT_PATH,
+            json=_chat([{"role": "user", "content": IVANOV_FULL}]),
             headers={"X-API-Key": NO_UNMASK_KEY},
         )
         assert resp.status_code == 200
         answer = resp.json()["choices"][0]["message"]["content"]
-        assert "Иванов" not in answer
+        assert IVANOV not in answer
         assert "[ФИО_1]" in answer
 
 
@@ -134,7 +139,7 @@ async def test_chat_stream_not_supported(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as (_app, client):
         resp = await client.post(
-            "/v1/chat/completions",
+            CHAT_PATH,
             json={"messages": [{"role": "user", "content": "hi"}], "stream": True},
             headers={"X-API-Key": TOKEN_KEY},
         )
@@ -147,7 +152,7 @@ async def test_chat_missing_api_key(tmp_path) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as (_app, client):
         resp = await client.post(
-            "/v1/chat/completions",
+            CHAT_PATH,
             json=_chat([{"role": "user", "content": "hi"}]),
         )
         assert resp.status_code == 401
@@ -170,14 +175,14 @@ async def test_chat_llm_failure_falls_back_to_mock(tmp_path) -> None:
     async with _client_for(settings) as (app, client):
         app.state.llm_client = FailingLLM()
         resp = await client.post(
-            "/v1/chat/completions",
-            json=_chat([{"role": "user", "content": "Иванов Иван Иванович"}]),
+            CHAT_PATH,
+            json=_chat([{"role": "user", "content": IVANOV_FULL}]),
             headers={"X-API-Key": TOKEN_KEY},
         )
         assert resp.status_code == 200
         body = resp.json()
         assert body["pii_guard"]["llm"] == "mock_fallback"
-        assert "Иванов Иван Иванович" in body["choices"][0]["message"]["content"]
+        assert IVANOV_FULL in body["choices"][0]["message"]["content"]
 
 
 @pytest.mark.asyncio
@@ -192,7 +197,7 @@ async def test_chat_overloaded_returns_429(tmp_path) -> None:
         gate = app.state.concurrency_gate
         assert gate.try_enter() is True
         resp = await client.post(
-            "/v1/chat/completions",
+            CHAT_PATH,
             json=_chat([{"role": "user", "content": "hi"}]),
             headers={"X-API-Key": TOKEN_KEY},
         )

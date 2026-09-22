@@ -19,6 +19,12 @@ from pii_guard.core.models import MappingRecord, Span
 from pii_guard.core.policy import Profile
 from pii_guard.core.types import default_type_registry
 
+CLIENT_PASSPORT_TEXT = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+IVANOV = "Иванов Иван"
+PETROV = "Петров Пётр"
+PHONE_PARENS = "+7 (916) 123-45-67"
+IVANOV_FULL = "Иванов Иван Иванович"
+
 
 def _span(start: int, end: int, pii_type: str) -> Span:
     return Span(start=start, end=end, pii_type=pii_type, score=1.0, recognizer="test")
@@ -38,7 +44,7 @@ def test_mask_partial_contract_example() -> None:
 
 
 def test_mask_partial_phone() -> None:
-    assert mask_partial("+7 (916) 123-45-67", PartialSpec(1, 2)) == "+7 (***) ***-**-67"
+    assert mask_partial(PHONE_PARENS, PartialSpec(1, 2)) == "+7 (***) ***-**-67"
 
 
 def test_mask_partial_card() -> None:
@@ -54,7 +60,7 @@ def test_mask_partial_keeps_separators_when_all_masked() -> None:
 
 
 def test_mask_initials_full_name() -> None:
-    assert mask_initials("Иванов Иван Иванович") == "И. И. И."
+    assert mask_initials(IVANOV_FULL) == "И. И. И."
 
 
 def test_mask_initials_abbreviated() -> None:
@@ -74,7 +80,7 @@ def test_mask_email() -> None:
 
 
 def test_mask_phone_plus7_parens() -> None:
-    assert mask_phone("+7 (916) 123-45-67") == "+7 (***) ***-**-67"
+    assert mask_phone(PHONE_PARENS) == "+7 (***) ***-**-67"
 
 
 def test_mask_phone_8_spaces() -> None:
@@ -116,9 +122,9 @@ def test_default_partial_specs() -> None:
 
 
 def test_partial_style_uses_default_specs() -> None:
-    text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+    text = CLIENT_PASSPORT_TEXT
     spans = [
-        _span_at(text, "Иванов Иван Иванович", "PERSON"),
+        _span_at(text, IVANOV_FULL, "PERSON"),
         _span_at(text, "4509 123456", "PASSPORT"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="partial"))
@@ -134,9 +140,9 @@ def test_partial_style_custom_spec_overrides_default() -> None:
 
 
 def test_label_style() -> None:
-    text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+    text = CLIENT_PASSPORT_TEXT
     spans = [
-        _span_at(text, "Иванов Иван Иванович", "PERSON"),
+        _span_at(text, IVANOV_FULL, "PERSON"),
         _span_at(text, "4509 123456", "PASSPORT"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="label"))
@@ -145,9 +151,9 @@ def test_label_style() -> None:
 
 def test_full_style_masks_every_char() -> None:
     cases = [
-        ("Иванов Иван Иванович", "PERSON"),
+        (IVANOV_FULL, "PERSON"),
         ("ivanov@mail.ru", "EMAIL"),
-        ("+7 (916) 123-45-67", "PHONE"),
+        (PHONE_PARENS, "PHONE"),
         ("4509 123456", "PASSPORT"),
         ("г. Москва, ул. Ленина, д. 5", "ADDRESS"),
     ]
@@ -164,7 +170,7 @@ def test_full_style_masks_every_char() -> None:
 def test_token_style_repeated_value_same_number() -> None:
     text = "Иванов Иван и ИВАНОВ ИВАН"
     spans = [
-        _span_at(text, "Иванов Иван", "PERSON"),
+        _span_at(text, IVANOV, "PERSON"),
         _span_at(text, "ИВАНОВ ИВАН", "PERSON"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="token"))
@@ -174,8 +180,8 @@ def test_token_style_repeated_value_same_number() -> None:
 def test_token_style_distinct_values_distinct_numbers() -> None:
     text = "Иванов Иван и Петров Пётр"
     spans = [
-        _span_at(text, "Иванов Иван", "PERSON"),
-        _span_at(text, "Петров Пётр", "PERSON"),
+        _span_at(text, IVANOV, "PERSON"),
+        _span_at(text, PETROV, "PERSON"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="token"))
     assert result.text == "[ФИО_1] и [ФИО_2]"
@@ -194,9 +200,9 @@ def test_token_style_normalized_phone_same_token() -> None:
 def test_token_style_types_numbered_independently() -> None:
     text = "Иванов Иван, 4509 123456, Петров Пётр"
     spans = [
-        _span_at(text, "Иванов Иван", "PERSON"),
+        _span_at(text, IVANOV, "PERSON"),
         _span_at(text, "4509 123456", "PASSPORT"),
-        _span_at(text, "Петров Пётр", "PERSON"),
+        _span_at(text, PETROV, "PERSON"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="token"))
     assert result.text == "[ФИО_1], [ПАСПОРТ_1], [ФИО_2]"
@@ -205,16 +211,18 @@ def test_token_style_types_numbered_independently() -> None:
 def test_unknown_mask_style_raises() -> None:
     import pytest
 
-    text = "Иванов Иван"
-    spans = [_span_at(text, "Иванов Иван", "PERSON")]
+    text = IVANOV
+    spans = [_span_at(text, IVANOV, "PERSON")]
+    masker = _masker()
+    profile = Profile(name="checker", mask_style="bogus")
     with pytest.raises(ValueError):
-        _masker().apply(text, spans, Profile(name="checker", mask_style="bogus"))
+        masker.apply(text, spans, profile)
 
 
 def test_unmask_roundtrip_partial() -> None:
-    text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+    text = CLIENT_PASSPORT_TEXT
     spans = [
-        _span_at(text, "Иванов Иван Иванович", "PERSON"),
+        _span_at(text, IVANOV_FULL, "PERSON"),
         _span_at(text, "4509 123456", "PASSPORT"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="partial"))
@@ -223,9 +231,9 @@ def test_unmask_roundtrip_partial() -> None:
 
 
 def test_unmask_roundtrip_label() -> None:
-    text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+    text = CLIENT_PASSPORT_TEXT
     spans = [
-        _span_at(text, "Иванов Иван Иванович", "PERSON"),
+        _span_at(text, IVANOV_FULL, "PERSON"),
         _span_at(text, "4509 123456", "PASSPORT"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="label"))
@@ -236,8 +244,8 @@ def test_unmask_roundtrip_label() -> None:
 def test_unmask_roundtrip_token() -> None:
     text = "Иванов Иван и Петров Пётр, 4509 123456"
     spans = [
-        _span_at(text, "Иванов Иван", "PERSON"),
-        _span_at(text, "Петров Пётр", "PERSON"),
+        _span_at(text, IVANOV, "PERSON"),
+        _span_at(text, PETROV, "PERSON"),
         _span_at(text, "4509 123456", "PASSPORT"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="token"))

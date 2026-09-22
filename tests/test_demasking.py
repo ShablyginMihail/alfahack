@@ -6,6 +6,11 @@ from hypothesis import strategies as st
 from pii_guard.core.demasking import replace_masked_fragments, restore, unmask
 from pii_guard.core.models import MappingRecord, Replacement
 
+PHONE_MASK = "45** ****56"
+INN_MASKED_TEXT = "ИНН 77** **** **"
+INN_MASK = "77** **** **"
+INN_ORIGINAL_TEXT = "ИНН 7707083893"
+
 
 def _replacement(
     start: int,
@@ -27,7 +32,7 @@ def _replacement(
 
 def test_restore_multiple_replacements_varying_length() -> None:
     text = "Звоните 45** ****56, карта 1234 **** **** 5678"
-    phone_mask = "45** ****56"
+    phone_mask = PHONE_MASK
     card_mask = "1234 **** **** 5678"
     phone_start = text.index(phone_mask)
     card_start = text.index(card_mask)
@@ -39,9 +44,9 @@ def test_restore_multiple_replacements_varying_length() -> None:
 
 
 def test_restore_mask_shorter_than_original() -> None:
-    text = "ИНН 77** **** **"
-    replacements = [_replacement(4, 16, 4, "7707083893", "77** **** **", "INN")]
-    assert restore(text, replacements) == "ИНН 7707083893"
+    text = INN_MASKED_TEXT
+    replacements = [_replacement(4, 16, 4, "7707083893", INN_MASK, "INN")]
+    assert restore(text, replacements) == INN_ORIGINAL_TEXT
 
 
 def test_restore_mask_longer_than_original() -> None:
@@ -53,12 +58,12 @@ def test_restore_mask_longer_than_original() -> None:
 def test_restore_empty_masked_inserts_original() -> None:
     masked_text = "ИНН "
     replacements = [_replacement(4, 16, 4, "7707083893", "", "INN")]
-    assert restore(masked_text, replacements) == "ИНН 7707083893"
+    assert restore(masked_text, replacements) == INN_ORIGINAL_TEXT
 
 
 def test_restore_returns_none_when_text_changed() -> None:
     text = "Звоните 45** ***56 пожалуйста"
-    replacements = [_replacement(8, 18, 8, "4509 123456", "45** ****56", "PHONE")]
+    replacements = [_replacement(8, 18, 8, "4509 123456", PHONE_MASK, "PHONE")]
     assert restore(text, replacements) is None
 
 
@@ -73,7 +78,7 @@ def test_restore_returns_none_on_overlapping_replacements() -> None:
 
 def test_replace_masked_fragments_inserts_originals_into_modified_text() -> None:
     text = "Ваш номер 45** ****56 был изменён, перезвоните на 45** ****56"
-    replacements = [_replacement(10, 20, 10, "4509 123456", "45** ****56", "PHONE")]
+    replacements = [_replacement(10, 20, 10, "4509 123456", PHONE_MASK, "PHONE")]
     assert (
         replace_masked_fragments(text, replacements)
         == "Ваш номер 4509 123456 был изменён, перезвоните на 4509 123456"
@@ -83,8 +88,8 @@ def test_replace_masked_fragments_inserts_originals_into_modified_text() -> None
 def test_replace_masked_fragments_repeated_masked_with_different_originals() -> None:
     text = "45** ****56 и 45** ****56"
     replacements = [
-        _replacement(0, 10, 0, "4509 123456", "45** ****56", "PHONE"),
-        _replacement(14, 24, 14, "7999 000000", "45** ****56", "PHONE"),
+        _replacement(0, 10, 0, "4509 123456", PHONE_MASK, "PHONE"),
+        _replacement(14, 24, 14, "7999 000000", PHONE_MASK, "PHONE"),
     ]
     assert replace_masked_fragments(text, replacements) == "4509 123456 и 7999 000000"
 
@@ -92,8 +97,8 @@ def test_replace_masked_fragments_repeated_masked_with_different_originals() -> 
 def test_replace_masked_fragments_after_exhaustion_uses_last() -> None:
     text = "45** ****56 45** ****56 45** ****56"
     replacements = [
-        _replacement(0, 10, 0, "4509 123456", "45** ****56", "PHONE"),
-        _replacement(11, 21, 11, "7999 000000", "45** ****56", "PHONE"),
+        _replacement(0, 10, 0, "4509 123456", PHONE_MASK, "PHONE"),
+        _replacement(11, 21, 11, "7999 000000", PHONE_MASK, "PHONE"),
     ]
     assert replace_masked_fragments(text, replacements) == "4509 123456 7999 000000 7999 000000"
 
@@ -122,17 +127,17 @@ def test_replace_masked_fragments_skips_pure_star_masks() -> None:
 def test_unmask_exact_text_restores() -> None:
     record = MappingRecord(
         original_fp="fp",
-        masked_text="ИНН 77** **** **",
-        replacements=(_replacement(4, 16, 4, "7707083893", "77** **** **", "INN"),),
+        masked_text=INN_MASKED_TEXT,
+        replacements=(_replacement(4, 16, 4, "7707083893", INN_MASK, "INN"),),
     )
-    assert unmask(record.masked_text, record) == "ИНН 7707083893"
+    assert unmask(record.masked_text, record) == INN_ORIGINAL_TEXT
 
 
 def test_unmask_modified_text_replaces_fragments() -> None:
     record = MappingRecord(
         original_fp="fp",
-        masked_text="ИНН 77** **** **",
-        replacements=(_replacement(4, 16, 4, "7707083893", "77** **** **", "INN"),),
+        masked_text=INN_MASKED_TEXT,
+        replacements=(_replacement(4, 16, 4, "7707083893", INN_MASK, "INN"),),
     )
     assert unmask("ИНН 77** **** ** указан в заявке", record) == "ИНН 7707083893 указан в заявке"
 

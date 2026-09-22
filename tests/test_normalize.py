@@ -5,10 +5,12 @@ from hypothesis import strategies as st
 
 from pii_guard.core.normalize import Document, normalize
 
+SAMPLE_TEXT = "ИВАНОВ Ёжик — ТЕСТ"
+
 
 def test_length_preserved_on_mixed_strings() -> None:
     samples = [
-        "ИВАНОВ Ёжик — ТЕСТ",
+        SAMPLE_TEXT,
         "İstanbul",
         "Привет\u00a0мир\u200bтест",
         "«кавычки» и 'апострофы'",
@@ -21,7 +23,7 @@ def test_length_preserved_on_mixed_strings() -> None:
 
 
 def test_known_transformation() -> None:
-    assert normalize("ИВАНОВ Ёжик — ТЕСТ") == "иванов ежик - тест"
+    assert normalize(SAMPLE_TEXT) == "иванов ежик - тест"
 
 
 def test_yo_to_e() -> None:
@@ -50,8 +52,8 @@ def test_dotted_i_kept() -> None:
 
 
 def test_document_from_text() -> None:
-    doc = Document.from_text("ИВАНОВ Ёжик — ТЕСТ")
-    assert doc.text == "ИВАНОВ Ёжик — ТЕСТ"
+    doc = Document.from_text(SAMPLE_TEXT)
+    assert doc.text == SAMPLE_TEXT
     assert doc.norm == "иванов ежик - тест"
 
 

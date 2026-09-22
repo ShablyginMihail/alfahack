@@ -4,11 +4,14 @@ from httpx import ASGITransport, AsyncClient
 from pii_guard.main import create_app
 
 PAYLOAD_MARKER = "СЕКРЕТНЫЕ_ДАННЫЕ_12345"
+HEALTH_PATH = "/health"
+PROCESS_PATH = "/process"
+SECRET_MARKER = "СЕКРЕТ_123"
 
 
 @pytest.mark.asyncio
 async def test_health(client):
-    resp = await client.get("/health")
+    resp = await client.get(HEALTH_PATH)
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -23,7 +26,7 @@ async def test_ready(client):
 @pytest.mark.asyncio
 async def test_process_valid(client):
     resp = await client.post(
-        "/process",
+        PROCESS_PATH,
         json={"payload": PAYLOAD_MARKER, "payload_id": "id-1"},
     )
     assert resp.status_code == 200
@@ -32,7 +35,7 @@ async def test_process_valid(client):
 
 @pytest.mark.asyncio
 async def test_process_missing_payload_id(client):
-    resp = await client.post("/process", json={"payload": PAYLOAD_MARKER})
+    resp = await client.post(PROCESS_PATH, json={"payload": PAYLOAD_MARKER})
     assert resp.status_code == 422
     assert PAYLOAD_MARKER not in resp.text
 
@@ -40,7 +43,7 @@ async def test_process_missing_payload_id(client):
 @pytest.mark.asyncio
 async def test_process_bad_json(client):
     resp = await client.post(
-        "/process",
+        PROCESS_PATH,
         content=b'{"payload": "' + PAYLOAD_MARKER.encode() + b'",',
         headers={"content-type": "application/json"},
     )
@@ -52,7 +55,7 @@ async def test_process_bad_json(client):
 async def test_process_payload_too_large(client):
     big = "x" * 2000
     resp = await client.post(
-        "/process",
+        PROCESS_PATH,
         content=b'{"payload": "' + big.encode() + b'", "payload_id": "id-2"}',
         headers={"content-type": "application/json"},
     )
@@ -62,21 +65,21 @@ async def test_process_payload_too_large(client):
 
 @pytest.mark.asyncio
 async def test_request_id_generated(client):
-    resp = await client.get("/health")
+    resp = await client.get(HEALTH_PATH)
     assert resp.status_code == 200
     assert resp.headers.get("x-request-id")
 
 
 @pytest.mark.asyncio
 async def test_request_id_passthrough(client):
-    resp = await client.get("/health", headers={"X-Request-ID": "my-custom-id"})
+    resp = await client.get(HEALTH_PATH, headers={"X-Request-ID": "my-custom-id"})
     assert resp.status_code == 200
     assert resp.headers.get("x-request-id") == "my-custom-id"
 
 
 @pytest.mark.asyncio
 async def test_request_id_too_long_replaced(client):
-    resp = await client.get("/health", headers={"X-Request-ID": "x" * 100})
+    resp = await client.get(HEALTH_PATH, headers={"X-Request-ID": "x" * 100})
     assert resp.status_code == 200
     rid = resp.headers.get("x-request-id")
     assert rid and len(rid) == 32
@@ -84,7 +87,7 @@ async def test_request_id_too_long_replaced(client):
 
 @pytest.mark.asyncio
 async def test_request_id_with_space_replaced(client):
-    resp = await client.get("/health", headers={"X-Request-ID": "bad id"})
+    resp = await client.get(HEALTH_PATH, headers={"X-Request-ID": "bad id"})
     assert resp.status_code == 200
     rid = resp.headers.get("x-request-id")
     assert rid and len(rid) == 32
@@ -96,7 +99,7 @@ async def test_unhandled_exception_no_leak(settings, capsys):
 
     @app.get("/boom")
     async def boom():
-        raise RuntimeError("СЕКРЕТ_123")
+        raise RuntimeError(SECRET_MARKER)
 
     transport = ASGITransport(app=app, raise_app_exceptions=True)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -109,5 +112,5 @@ async def test_unhandled_exception_no_leak(settings, capsys):
     assert resp.headers.get("x-request-id") == "req-123"
 
     captured = capsys.readouterr()
-    assert "СЕКРЕТ_123" not in captured.out
-    assert "СЕКРЕТ_123" not in captured.err
+    assert SECRET_MARKER not in captured.out
+    assert SECRET_MARKER not in captured.err
