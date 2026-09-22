@@ -41,6 +41,27 @@ PERSONAL_CONTEXT = compile_keywords(
         "меня зовут",
         "зовут",
         "сотрудник",
+        "сын",
+        "дочь",
+        "дочка",
+        "муж",
+        "жена",
+        "супруг",
+        "супруга",
+        "мать",
+        "мама",
+        "отец",
+        "папа",
+        "брат",
+        "сестра",
+        "бабушка",
+        "дедушка",
+        "внук",
+        "внучка",
+        "тетя",
+        "дядя",
+        "племянник",
+        "племянница",
     ]
 )
 CULTURAL_CONTEXT = compile_keywords(
@@ -173,6 +194,51 @@ FUNCTION_WORDS = frozenset(
         "всей",
         "всю",
         "всею",
+    }
+)
+
+RELATIVE_WORDS = frozenset(
+    {
+        "сын",
+        "дочь",
+        "дочка",
+        "муж",
+        "жена",
+        "супруг",
+        "супруга",
+        "мать",
+        "мама",
+        "отец",
+        "папа",
+        "брат",
+        "сестра",
+        "бабушка",
+        "дедушка",
+        "внук",
+        "внучка",
+        "тетя",
+        "дядя",
+        "племянник",
+        "племянница",
+    }
+)
+
+_EXCLUDED_POS = frozenset(
+    {
+        "VERB",
+        "INFN",
+        "PRTF",
+        "PRTS",
+        "GRND",
+        "PREP",
+        "CONJ",
+        "PRCL",
+        "ADVB",
+        "NPRO",
+        "NUMR",
+        "INTJ",
+        "PRED",
+        "COMP",
     }
 )
 
@@ -330,6 +396,38 @@ def parse_word(word: str) -> tuple[Any, ...]:
     return tuple(get_morph().parse(word))
 
 
+@lru_cache(maxsize=65_536)
+def _word_roles(word: str) -> tuple[frozenset[str], str]:
+    roles: set[str] = set()
+    normal = word
+    name_normal = ""
+    for parse in parse_word(word):
+        if parse.score < 0.05:
+            continue
+        if "Name" in parse.tag:
+            roles.add("NAME")
+        if "Surn" in parse.tag:
+            roles.add("SURN")
+        if "Patr" in parse.tag:
+            roles.add("PATR")
+        if parse.normal_form:
+            normal = parse.normal_form
+            if any(tag in parse.tag for tag in ("Name", "Surn", "Patr")):
+                name_normal = parse.normal_form
+    if name_normal:
+        normal = name_normal
+    return frozenset(roles), normal
+
+
+@lru_cache(maxsize=65_536)
+def _word_variants(word: str) -> frozenset[str]:
+    variants = {word}
+    for parse in parse_word(word):
+        if parse.score >= 0.05 and parse.normal_form:
+            variants.add(parse.normal_form)
+    return frozenset(variants)
+
+
 def _load_public_figures() -> frozenset[str]:
     path = Path(__file__).resolve().parent.parent.parent / "data" / "dicts" / "public_figures.txt"
     if not path.exists():
@@ -409,6 +507,7 @@ class NameRecognizer(Recognizer):
             for token in tokens:
                 self._classify(token)
             self._clear_place_initials(doc, tokens)
+            self._clear_address_abbreviations(doc, tokens)
             self._apply_fallbacks(doc, tokens)
             spans.extend(self._combinations(doc, tokens))
         spans.extend(self._latin_names(doc))
@@ -425,7 +524,18 @@ class NameRecognizer(Recognizer):
                 token.roles = frozenset()
                 token.is_init = False
 
+    def _clear_address_abbreviations(self, doc: Document, tokens: list[_Token]) -> None:
+        for i, token in enumerate(tokens):
+            if not token.is_init or len(token.text) != 2:
+                continue
+            if i + 1 >= len(tokens):
+                continue
+            if doc.text[token.start].islower() and doc.text[tokens[i + 1].start].isupper():
+                token.roles = frozenset()
+                token.is_init = False
+
     @staticmethod
+    @lru_cache(maxsize=65_536)
     def _is_place_word(word: str) -> bool:
         if word in CITIES:
             return True
@@ -452,16 +562,31 @@ class NameRecognizer(Recognizer):
                         spans.append(
                             Span(span.start, span.end, "CARDHOLDER", span.score, self.name)
                         )
-                    else:
+                    elif not self._is_quoted_title(doc, span):
                         spans.append(span)
                 i = end
                 continue
             token = tokens[i]
             single = self._single_token_person(doc, token)
-            if single is not None:
+            if single is not None and not self._is_quoted_title(doc, single):
                 spans.append(single)
             i += 1
         return spans
+
+    @staticmethod
+    def _is_quoted_title(doc: Document, span: Span) -> bool:
+        norm = doc.norm
+        left = span.start - 1
+        while left >= 0 and norm[left].isspace():
+            left -= 1
+        if left < 0 or norm[left] != '"':
+            return False
+        right = span.end
+        while right < len(norm) and norm[right].isspace():
+            right += 1
+        if right >= len(norm) or norm[right] != '"':
+            return False
+        return find_keyword(doc, span.start, span.end, PERSONAL_CONTEXT, 40, "both") is None
 
     def _single_token_person(self, doc: Document, token: _Token) -> Span | None:
         if not (token.roles & {"SURN", "NAME"}) or (token.roles & {"PATR"}):
@@ -484,7 +609,10 @@ class NameRecognizer(Recognizer):
             return False
         if self._is_place_word(token.text):
             return False
-        if self._starts_uppercase_not_sentence_start(doc, token):
+        if self._starts_uppercase_not_sentence_start(doc, token) and not (
+            public_figure_context(doc, token.start)
+            or self._sentence_uppercase_ratio_high(doc, token)
+        ):
             return True
         return self._unambiguous_name(token.text)
 
@@ -500,6 +628,28 @@ class NameRecognizer(Recognizer):
         return doc.text[left] not in ".!?"
 
     @staticmethod
+    def _sentence_uppercase_ratio_high(doc: Document, token: _Token) -> bool:
+        norm = doc.norm
+        start = 0
+        for i in range(token.start - 1, -1, -1):
+            if norm[i] in ".!?\n":
+                start = i + 1
+                break
+        end = len(norm)
+        for i in range(token.end, len(norm)):
+            if norm[i] in ".!?\n":
+                end = i
+                break
+        sentence = doc.text[start:end]
+        words = re.findall(r"[а-яё]+(?:-[а-яё]+)*", sentence, re.IGNORECASE)
+        long_words = [w for w in words if len(w) >= 3]
+        if not long_words:
+            return False
+        uppercase = sum(1 for w in long_words if w[0].isupper())
+        return uppercase / len(long_words) >= 0.6
+
+    @staticmethod
+    @lru_cache(maxsize=65_536)
     def _unambiguous_name(word: str) -> bool:
         parses = [p for p in parse_word(word) if p.score >= 0.05]
         if not parses:
@@ -556,25 +706,21 @@ class NameRecognizer(Recognizer):
             token.roles = frozenset()
             token.normal = token.text
             return
-        roles: set[str] = set()
-        normal = token.text
-        for parse in parse_word(token.text):
-            if parse.score < 0.05:
-                continue
-            if "Name" in parse.tag:
-                roles.add("NAME")
-            if "Surn" in parse.tag:
-                roles.add("SURN")
-            if "Patr" in parse.tag:
-                roles.add("PATR")
-            if parse.normal_form:
-                normal = parse.normal_form
-        token.roles = frozenset(roles)
-        token.normal = normal
+        if token.text in RELATIVE_WORDS:
+            token.roles = frozenset()
+            token.normal = token.text
+            return
+        token.roles, token.normal = _word_roles(token.text)
 
     def _apply_fallbacks(self, doc: Document, tokens: list[_Token]) -> None:
         for i, token in enumerate(tokens):
             if token.is_init:
+                continue
+            if (
+                token.text in RELATIVE_WORDS
+                or token.text in FUNCTION_WORDS
+                or token.text in ABBREVIATION_STOP_WORDS
+            ):
                 continue
             roles = set(token.roles)
             if PATR_END_RE.search(token.text) and "PATR" not in roles:
@@ -618,31 +764,85 @@ class NameRecognizer(Recognizer):
             if ok:
                 start = tokens[i].start
                 end = tokens[i + len(pattern) - 1].end
-                return Span(start, end, "PERSON", score, self.name), i + len(pattern)
+                span = Span(start, end, "PERSON", score, self.name)
+                if pattern == ("NAME", "PATR"):
+                    span = self._extend_with_surname(doc, span, tokens, i, len(pattern))
+                return span, i + len(pattern)
         return None
+
+    def _extend_with_surname(
+        self, doc: Document, span: Span, tokens: list[_Token], start: int, length: int
+    ) -> Span:
+        left = start - 1
+        if (
+            left >= 0
+            and self._adjacent(doc, tokens[left], tokens[start])
+            and self._can_extend_surname(doc, tokens[left])
+            and (
+                not self._at_sentence_start(doc, tokens[left])
+                or self._looks_like_surname(tokens[left])
+            )
+        ):
+            return Span(tokens[left].start, span.end, "PERSON", span.score, self.name)
+        right = start + length
+        if (
+            right < len(tokens)
+            and self._adjacent(doc, tokens[start + length - 1], tokens[right])
+            and self._can_extend_surname(doc, tokens[right])
+        ):
+            return Span(span.start, tokens[right].end, "PERSON", span.score, self.name)
+        return span
+
+    @staticmethod
+    def _at_sentence_start(doc: Document, token: _Token) -> bool:
+        left = token.start - 1
+        while left >= 0 and doc.text[left].isspace():
+            left -= 1
+        return left < 0 or doc.text[left] in ".!?"
+
+    @staticmethod
+    def _looks_like_surname(token: _Token) -> bool:
+        if SURN_END_RE.search(token.text):
+            return True
+        return any("Surn" in parse.tag for parse in parse_word(token.text))
+
+    def _can_extend_surname(self, doc: Document, token: _Token) -> bool:
+        if (
+            token.text in FUNCTION_WORDS
+            or token.text in ABBREVIATION_STOP_WORDS
+            or token.text in RELATIVE_WORDS
+        ):
+            return False
+        if self._is_place_word(token.text):
+            return False
+        original = doc.text[token.start : token.end]
+        if not (original[0].isupper() or not any(ch.isupper() for ch in doc.text)):
+            return False
+        best = parse_word(token.text)[0]
+        return not any(tag in best.tag for tag in _EXCLUDED_POS)
 
     def _is_public_figure(
         self, doc: Document, span: Span, tokens: list[_Token], start: int, end: int
     ) -> bool:
         if find_keyword(doc, span.start, span.end, PERSONAL_CONTEXT, 40, "both") is not None:
             return False
-        surname = self._surname_normal(tokens, start, end)
-        if surname and surname in PUBLIC_FIGURES:
+        surname = self._surname_token(tokens, start, end)
+        if surname and _word_variants(surname) & PUBLIC_FIGURES:
             return True
         return find_keyword(doc, span.start, span.end, CULTURAL_CONTEXT, 40, "before") is not None
 
     def _is_public_figure_single(self, doc: Document, span: Span, token: _Token) -> bool:
         if find_keyword(doc, span.start, span.end, PERSONAL_CONTEXT, 40, "both") is not None:
             return False
-        if "SURN" in token.roles and token.normal in PUBLIC_FIGURES:
+        if "SURN" in token.roles and _word_variants(token.text) & PUBLIC_FIGURES:
             return True
         return find_keyword(doc, span.start, span.end, CULTURAL_CONTEXT, 40, "before") is not None
 
     @staticmethod
-    def _surname_normal(tokens: list[_Token], start: int, end: int) -> str:
+    def _surname_token(tokens: list[_Token], start: int, end: int) -> str:
         for token in tokens[start:end]:
             if "SURN" in token.roles:
-                return token.normal
+                return token.text
         return ""
 
 

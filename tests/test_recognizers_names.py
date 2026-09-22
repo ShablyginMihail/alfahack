@@ -167,3 +167,74 @@ def test_single_name_not_person() -> None:
     assert not _has_person("Роман прочитан за вечер")
     assert not _has_person("Встреча в Москве перенесена")
     assert not _has_person("Пушкин написал много стихов")
+
+
+def test_roman_in_title_case_not_person() -> None:
+    assert not _has_person("Александр Сергеевич Пушкин Написал Роман")
+    assert not _has_person("Пушкин написал Роман в стихах")
+
+
+def test_single_name_dative_still_person() -> None:
+    _span_at("Позвоните Марии по номеру 8 999 123 45 67", "Марии", "PERSON")
+
+
+def test_all_caps_name_via_unambiguous() -> None:
+    _span_at("ПОЗВОНИТЕ МАРИИ ЗАВТРА", "МАРИИ", "PERSON")
+
+
+def test_uppercase_ratio_high_ambiguous_name_not_person() -> None:
+    assert not _has_person("Пушкин Написал Роман")
+    assert not _has_person("Написала Вера Роман")
+
+
+def test_tolstoy_born_not_masked() -> None:
+    assert not _has_person("Лев Николаевич Толстой родился в Ясной Поляне")
+    assert not _has_person("Лев Толстой родился в 1828 году")
+
+
+def test_work_title_in_quotes_not_masked() -> None:
+    assert not _has_person("Александр Сергеевич Пушкин написал «Евгения Онегина»")
+
+
+def test_work_title_war_and_peace_not_masked() -> None:
+    assert not _has_person("Роман «Война и мир» написал Лев Николаевич Толстой")
+
+
+def test_relative_word_name_masked() -> None:
+    assert _mask("Мой сын Артём потерял карту") == "Мой сын А. потерял карту"
+
+
+def test_surname_not_in_dict_extended() -> None:
+    _span_at("Вера Николаевна Соловей ждёт ответа", "Вера Николаевна Соловей", "PERSON")
+    _span_at("у Надежды Петровны Белых заблокирована карта", "Надежды Петровны Белых", "PERSON")
+    _span_at("Я, Белых Надежда Петровна, гражданка РФ", "Белых Надежда Петровна", "PERSON")
+
+
+def test_name_patr_not_extended_to_verb() -> None:
+    _span_at("Вера Николаевна ждёт ответа", "Вера Николаевна", "PERSON")
+    _span_at("Анна Сергеевна позвонила вчера", "Анна Сергеевна", "PERSON")
+
+
+def test_left_extension_not_at_sentence_start_word() -> None:
+    _span_at("Клиентка Анна Сергеевна звонила", "Анна Сергеевна", "PERSON")
+    _span_at("Менеджер Анна Сергеевна согласовала заявку", "Анна Сергеевна", "PERSON")
+
+
+def test_left_extension_surname_at_sentence_start() -> None:
+    _span_at("Белых Надежда Петровна, 1985 г.р.", "Белых Надежда Петровна", "PERSON")
+
+
+def test_initials_uppercase_person() -> None:
+    assert _has_person("И. И. Иванов")
+
+
+def test_initials_lowercase_person() -> None:
+    assert _has_person("иванов и. и.")
+
+
+def test_moscow_capital_not_person() -> None:
+    assert not _has_person("Москва — столица России")
+
+
+def test_address_abbreviation_not_initial() -> None:
+    assert not _has_person("г. Бийск, ш. Космонавтов, д. 69")
