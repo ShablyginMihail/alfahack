@@ -17,7 +17,7 @@ async def test_health(client):
 async def test_ready(client):
     resp = await client.get("/ready")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ready"}
+    assert resp.json()["status"] == "ready"
 
 
 @pytest.mark.asyncio

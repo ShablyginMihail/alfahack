@@ -18,5 +18,8 @@ def settings() -> Settings:
 async def client(settings: Settings):
     app = create_app(settings)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=transport, base_url="http://test") as c,
+    ):
         yield c

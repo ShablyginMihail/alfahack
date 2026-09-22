@@ -10,16 +10,27 @@ from fastapi import FastAPI
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from pii_guard.api import errors, health, process
+from pii_guard.core.engine import Engine
+from pii_guard.core.masking import DefaultMasker
+from pii_guard.core.policy import CHECKER_PROFILE
+from pii_guard.core.registry import RecognizerRegistry
+from pii_guard.core.types import default_type_registry
 from pii_guard.observability.logging import configure_logging, get_logger
+from pii_guard.services.process import ProcessService
 from pii_guard.settings import Settings, get_settings
+from pii_guard.store.base import MappingStore
+from pii_guard.store.crypto import RecordCipher, decode_key
+from pii_guard.store.failover import FailoverStore
+from pii_guard.store.memory import MemoryStore
+from pii_guard.store.redis_store import RedisStore, create_redis_client
 
 logger = get_logger("pii_guard.request")
 
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
-def warm_up() -> None:
-    pass
+def warm_up(engine: Engine) -> None:
+    engine.mask("тест", CHECKER_PROFILE)
 
 
 class RequestContextMiddleware:
@@ -140,15 +151,53 @@ class BodyLimitMiddleware:
         await send({"type": "http.response.body", "body": body})
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    registry: RecognizerRegistry | None = None,
+) -> FastAPI:
     if settings is None:
         settings = get_settings()
+
+    encryption_key = decode_key(
+        settings.encryption_key.get_secret_value() if settings.encryption_key else None
+    )
+    hmac_key = decode_key(settings.hmac_key.get_secret_value() if settings.hmac_key else None)
+    if settings.encryption_key is None or settings.hmac_key is None:
+        logger.warning("crypto keys not configured, generated ephemeral keys")
+
+    cipher = RecordCipher(encryption_key, hmac_key)
+
+    if registry is None:
+        registry = RecognizerRegistry.from_modules(settings.recognizer_modules)
+    masker = DefaultMasker(default_type_registry())
+    engine = Engine(registry, masker)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         configure_logging(settings.log_level)
-        warm_up()
-        yield
+        store: MappingStore
+        if settings.redis_url:
+            store = FailoverStore(
+                RedisStore(create_redis_client(settings.redis_url), cipher),
+                MemoryStore(cipher),
+            )
+        else:
+            store = MemoryStore(cipher)
+        service = ProcessService(
+            engine,
+            store,
+            cipher,
+            CHECKER_PROFILE,
+            settings.mapping_ttl_seconds,
+        )
+        app.state.store = store
+        app.state.process_service = service
+        app.state.cipher = cipher
+        warm_up(engine)
+        try:
+            yield
+        finally:
+            await store.close()
 
     app = FastAPI(
         title="PII Guard",
