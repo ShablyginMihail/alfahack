@@ -19,6 +19,7 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass
 from queue import Empty
+from typing import Any
 from urllib.parse import urlsplit
 
 DEFAULT_TEXTS = [
@@ -85,6 +86,9 @@ class RunConfig:
     request_timeout: float
     big_share: float
     retry_after_default: float
+
+
+_QueueItem = tuple[float, float, int] | tuple[str, str, str]
 
 
 def parse_args() -> argparse.Namespace:
@@ -200,7 +204,7 @@ async def post(
     config: RunConfig,
     payload: str,
     payload_id: str,
-    queue: multiprocessing.Queue,
+    queue: multiprocessing.Queue[_QueueItem],
 ) -> tuple[int, bytes]:
     body = build_request(config.path, config.host, config.port, payload, payload_id)
     last_status = 0
@@ -230,7 +234,7 @@ async def post(
 async def run_connection(
     config: RunConfig,
     start_delay: float,
-    queue: multiprocessing.Queue,
+    queue: multiprocessing.Queue[_QueueItem],
     rng: random.Random,
 ) -> None:
     loop_start = time.monotonic()
@@ -266,7 +270,7 @@ async def run_connection(
 async def run_process(
     config: RunConfig,
     conns: int,
-    queue: multiprocessing.Queue,
+    queue: multiprocessing.Queue[_QueueItem],
     start_offset: int,
     total_conns: int,
     rng: random.Random,
@@ -282,7 +286,7 @@ async def run_process(
 def worker_main(
     config: RunConfig,
     conns: int,
-    queue: multiprocessing.Queue,
+    queue: multiprocessing.Queue[_QueueItem],
     start_offset: int,
     total_conns: int,
 ) -> None:
@@ -298,7 +302,7 @@ def percentile(values: list[float], p: float) -> float:
     return ordered[idx]
 
 
-def format_codes(codes: Counter) -> str:
+def format_codes(codes: Counter[int]) -> str:
     return ", ".join(f"{code}: {count}" for code, count in sorted(codes.items()))
 
 
@@ -308,7 +312,7 @@ def aggregate(
     test_start: float,
     ramp: float,
     steady: float,
-) -> dict:
+) -> dict[str, Any]:
     records.sort(key=lambda r: r[0])
     windows: dict[int, list[tuple[float, int]]] = {}
     for end_time, latency, status in records:
@@ -370,11 +374,11 @@ def aggregate(
 
 
 def _launch_workers(
-    ctx: multiprocessing.context.BaseContext,
+    ctx: multiprocessing.context.SpawnContext,
     config: RunConfig,
     conns: int,
     procs: int,
-    queue: multiprocessing.Queue,
+    queue: multiprocessing.Queue[_QueueItem],
 ) -> list[multiprocessing.process.BaseProcess]:
     base = conns // procs
     extra = conns % procs
@@ -390,7 +394,7 @@ def _launch_workers(
 
 
 def _drain_results(
-    queue: multiprocessing.Queue,
+    queue: multiprocessing.Queue[_QueueItem],
     procs: list[multiprocessing.process.BaseProcess],
 ) -> tuple[list[tuple[float, float, int]], int]:
     records: list[tuple[float, float, int]] = []
@@ -407,7 +411,7 @@ def _drain_results(
                     break
                 continue
             with lock:
-                if item[0] == "discrepancy":
+                if isinstance(item[0], str):
                     discrepancies += 1
                 else:
                     records.append(item)
@@ -441,7 +445,7 @@ def main() -> None:
     )
 
     ctx = multiprocessing.get_context("spawn")
-    queue: multiprocessing.Queue = ctx.Queue()
+    queue: multiprocessing.Queue[_QueueItem] = ctx.Queue()
     test_start = time.time()
 
     procs = _launch_workers(ctx, config, args.conns, args.procs, queue)
