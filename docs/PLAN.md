@@ -283,7 +283,7 @@ systems:
 - [ ] T17a — качество кода под Sonar: sonar-project.properties, локальный SonarQube, чистка замечаний, mypy для eval/
 
 ### Этап 5 — LLM-прокси и демо
-- [ ] T18 — /v1/chat/completions: маска → повторная проверка → LLM (mock или AlfaGen) → демаскирование; русский текст и chat messages
+- [x] T18 — /v1/chat/completions: маска → повторная проверка → LLM (mock или AlfaGen) → демаскирование; русский текст и chat messages
 - [x] T19 — демо-страница на `/` (написана Claude как разовое исключение, пока alfagen был недоступен)
 - [ ] T20 — доп. возможности: доп. типы документов, 2000 RPS
 
