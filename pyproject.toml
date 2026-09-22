@@ -50,7 +50,8 @@ extend-exclude = ["docs"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "C90", "S", "RUF"]
 # проект работает с русским текстом: кириллица в строках и комментариях ожидаема
-ignore = ["RUF001", "RUF002", "RUF003"]
+# SIM108 толкает к вложенным тернарным выражениям, которые Sonar считает нарушением
+ignore = ["RUF001", "RUF002", "RUF003", "SIM108"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

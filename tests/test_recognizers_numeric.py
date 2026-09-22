@@ -1,0 +1,111 @@
+from pii_guard.core.engine import Engine
+from pii_guard.core.masking import DefaultMasker
+from pii_guard.core.policy import CHECKER_PROFILE
+from pii_guard.core.registry import RecognizerRegistry
+from pii_guard.core.types import default_type_registry
+from pii_guard.recognizers.numeric import recognizers
+
+
+def _engine() -> Engine:
+    registry = RecognizerRegistry()
+    for recognizer in recognizers():
+        registry.register(recognizer)
+    return Engine(registry, DefaultMasker(default_type_registry()))
+
+
+def _mask(text: str) -> str:
+    return _engine().mask(text, CHECKER_PROFILE).text
+
+
+def _luhn(base: str) -> str:
+    total = 0
+    for i, ch in enumerate(reversed(base)):
+        digit = int(ch)
+        if (i + 1) % 2 == 1:
+            digit *= 2
+            if digit > 9:
+                digit -= 9
+        total += digit
+    check = (10 - total % 10) % 10
+    return base + str(check)
+
+
+def test_email_uppercase() -> None:
+    assert _mask("IVANOV@MAIL.RU") == "I*****@MAIL.RU"
+
+
+def test_email_cyrillic_domain() -> None:
+    assert _mask("ivanov@почта.рф") == "i*****@почта.рф"
+
+
+def test_phone_plus7_parens() -> None:
+    assert _mask("+7 (916) 123-45-67") == "+7 (***) ***-**-67"
+
+
+def test_phone_8_spaces() -> None:
+    assert _mask("8 916 123 45 67") == "8 *** *** ** 67"
+
+
+def test_phone_plus7_compact() -> None:
+    assert _mask("+79161234567") == "+7********67"
+
+
+def test_phone_8_hyphens() -> None:
+    assert _mask("8-916-123-45-67") == "8-***-***-**-67"
+
+
+def test_phone_no_code_with_context() -> None:
+    assert _mask("телефон (916) 123-45-67") == "телефон (***) ***-**-67"
+
+
+def test_phone_no_code_context_word() -> None:
+    assert _mask("звоните 916 123 45 67") == "звоните *** *** ** 67"
+
+
+def test_phone_international() -> None:
+    assert _mask("+375 29 123-45-67") == "+375 ** ***-**-67"
+
+
+def test_card_grouped_spaces() -> None:
+    assert _mask("4276 1234 5678 9012") == "4276 **** **** 9012"
+
+
+def test_card_grouped_hyphens() -> None:
+    assert _mask("4276-1234-5678-9012") == "4276-****-****-9012"
+
+
+def test_card_16_digits_run_valid() -> None:
+    assert _mask("4111111111111111") == "4111********1111"
+
+
+def test_card_valid_luhn_no_context() -> None:
+    assert _mask("4111111111111111") == "4111********1111"
+
+
+def test_card_invalid_with_context() -> None:
+    assert _mask("карта 1234567890123456") == "карта 1234********3456"
+
+
+def test_card_invalid_no_context_no_grouping_not_masked() -> None:
+    assert _mask("1234567890123456") == "1234567890123456"
+
+
+def test_ordinary_numbers_not_masked() -> None:
+    assert _mask("заказ 12345") == "заказ 12345"
+    assert _mask("2024 год") == "2024 год"
+    assert _mask("цена 1500 рублей") == "цена 1500 рублей"
+
+
+def test_card_next_to_phone_each_masked_by_type() -> None:
+    text = "карта 4276 1234 5678 9012, телефон +7 916 123 45 67"
+    assert _mask(text) == "карта 4276 **** **** 9012, телефон +7 *** *** ** 67"
+
+
+def test_card_13_digits_ogrn_not_masked() -> None:
+    number = _luhn("123456789012")
+    assert _mask(f"ОГРН {number}") == f"ОГРН {number}"
+
+
+def test_card_13_digits_valid_masked() -> None:
+    number = _luhn("123456789012")
+    assert _mask(number) != number

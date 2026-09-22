@@ -13,6 +13,7 @@ from pii_guard.core.masking import (
     mask_email,
     mask_initials,
     mask_partial,
+    mask_phone,
 )
 from pii_guard.core.models import MappingRecord, Span
 from pii_guard.core.policy import Profile
@@ -70,6 +71,38 @@ def test_mask_initials_hyphenated_word() -> None:
 
 def test_mask_email() -> None:
     assert mask_email("ivanov@mail.ru") == "i*****@mail.ru"
+
+
+def test_mask_phone_plus7_parens() -> None:
+    assert mask_phone("+7 (916) 123-45-67") == "+7 (***) ***-**-67"
+
+
+def test_mask_phone_8_spaces() -> None:
+    assert mask_phone("8 916 123 45 67") == "8 *** *** ** 67"
+
+
+def test_mask_phone_plus7_compact() -> None:
+    assert mask_phone("+79161234567") == "+7********67"
+
+
+def test_mask_phone_8_hyphens() -> None:
+    assert mask_phone("8-916-123-45-67") == "8-***-***-**-67"
+
+
+def test_mask_phone_no_code_parens() -> None:
+    assert mask_phone("(916) 123-45-67") == "(***) ***-**-67"
+
+
+def test_mask_phone_no_code_spaces() -> None:
+    assert mask_phone("916 123 45 67") == "*** *** ** 67"
+
+
+def test_mask_phone_international_spaces() -> None:
+    assert mask_phone("+375 29 123-45-67") == "+375 ** ***-**-67"
+
+
+def test_mask_phone_international_compact() -> None:
+    assert mask_phone("+375291234567") == "+375*******67"
 
 
 def test_default_partial_specs() -> None:

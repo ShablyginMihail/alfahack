@@ -71,6 +71,38 @@ def mask_email(value: str, mask_char: str = "*") -> str:
     return local[0] + mask_char * (len(local) - 1) + value[at:]
 
 
+def mask_phone(value: str, mask_char: str = "*") -> str:
+    digits_pos = [i for i, ch in enumerate(value) if ch.isdigit()]
+    digits_str = "".join(value[i] for i in digits_pos)
+    n = len(digits_str)
+
+    code_len = 0
+    plus = value.find("+")
+    if plus >= 0:
+        run = 0
+        i = plus + 1
+        while i < len(value) and value[i].isdigit():
+            run += 1
+            i += 1
+        if run <= 3:
+            code_len = run
+        else:
+            code_len = 1 if digits_str[0] in ("7", "1") else 3
+    elif n == 11 and digits_str[0] in ("8", "7"):
+        code_len = 1
+
+    keep: set[int] = set(digits_pos[:code_len])
+    if n - code_len >= 2:
+        keep.add(digits_pos[-1])
+        keep.add(digits_pos[-2])
+
+    chars = list(value)
+    for i in digits_pos:
+        if i not in keep:
+            chars[i] = mask_char
+    return "".join(chars)
+
+
 class _TokenNumbering:
     def __init__(self) -> None:
         self._counters: dict[str, int] = {}
@@ -143,6 +175,8 @@ class DefaultMasker:
             return mask_initials(original)
         if span.pii_type == "EMAIL":
             return mask_email(original, self._mask_char)
+        if span.pii_type == "PHONE":
+            return mask_phone(original, self._mask_char)
         spec = self._partial_specs.get(span.pii_type, PartialSpec(0, 0))
         return mask_partial(original, spec, self._mask_char)
 
