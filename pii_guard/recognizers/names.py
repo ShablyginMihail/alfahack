@@ -188,6 +188,108 @@ PATTERNS: tuple[tuple[tuple[str, ...], float], ...] = (
     (("NAME", "SURN"), 0.8),
 )
 
+LATIN_NAME_RE = re.compile(
+    r"(?<!\w)([a-z]{2,}(?:['-][a-z]{2,})*)(?:\s+([a-z]{2,}(?:['-][a-z]{2,})*))(?:\s+([a-z]{2,}(?:['-][a-z]{2,})*))?(?!\w)"
+)
+CARD_NUMBER_RE = re.compile(r"(?<!\d)(?:\d[\s-]?){12,18}\d(?!\d)")
+_LATIN_SURN_END = re.compile(r"(?:ov|ev|in|ova|eva|ina|sky|skaya)$")
+
+CARDHOLDER_CONTEXT = compile_keywords(
+    [
+        "держател",
+        "владелец карты",
+        "имя на карте",
+        "имя держателя",
+        "cardholder",
+        "card holder",
+        "name on card",
+    ]
+)
+CYRILLIC_CARDHOLDER_CONTEXT = compile_keywords(["держател", "владелец карты", "имя на карте"])
+
+LATIN_STOP_WORDS = frozenset(
+    {
+        "visa",
+        "mastercard",
+        "maestro",
+        "card",
+        "bank",
+        "gold",
+        "platinum",
+        "classic",
+        "name",
+        "holder",
+        "the",
+        "and",
+        "of",
+    }
+)
+TRANSLIT_NAMES = frozenset(
+    {
+        "ivan",
+        "petr",
+        "pyotr",
+        "sergey",
+        "sergei",
+        "alexander",
+        "aleksandr",
+        "alexey",
+        "dmitry",
+        "andrey",
+        "mikhail",
+        "nikolay",
+        "vladimir",
+        "olga",
+        "elena",
+        "anna",
+        "maria",
+        "natalia",
+        "tatiana",
+        "irina",
+        "svetlana",
+        "ekaterina",
+        "yulia",
+        "alexei",
+        "alex",
+        "dmitri",
+        "dmitriy",
+        "andrei",
+        "michael",
+        "nikolai",
+        "vlad",
+        "oleg",
+        "pavel",
+        "roman",
+        "denis",
+        "artem",
+        "artyom",
+        "anton",
+        "viktor",
+        "victor",
+        "yuri",
+        "yuriy",
+        "igor",
+        "boris",
+        "konstantin",
+        "valentin",
+        "valentina",
+        "vera",
+        "nadezhda",
+        "lyudmila",
+        "galina",
+        "tamara",
+        "zinaida",
+        "raisa",
+        "larisa",
+        "oksana",
+        "nina",
+        "tatyana",
+        "daria",
+        "darya",
+        "katerina",
+    }
+)
+
 
 @lru_cache(maxsize=1)
 def get_morph() -> pymorphy3.MorphAnalyzer:
@@ -195,7 +297,7 @@ def get_morph() -> pymorphy3.MorphAnalyzer:
 
 
 @lru_cache(maxsize=100_000)
-def _parse(word: str) -> tuple[Any, ...]:
+def parse_word(word: str) -> tuple[Any, ...]:
     return tuple(get_morph().parse(word))
 
 
@@ -225,16 +327,20 @@ class _Token:
 
 class NameRecognizer(Recognizer):
     name = "name"
-    pii_types = frozenset({"PERSON"})
+    pii_types = frozenset({"PERSON", "CARDHOLDER"})
 
     def find(self, doc: Document) -> Iterable[Span]:
         tokens = self._tokenize(doc)
-        if not tokens:
-            return []
-        for token in tokens:
-            self._classify(token)
-        self._apply_fallbacks(doc, tokens)
+        spans: list[Span] = []
+        if tokens:
+            for token in tokens:
+                self._classify(token)
+            self._apply_fallbacks(doc, tokens)
+            spans.extend(self._combinations(doc, tokens))
+        spans.extend(self._latin_names(doc))
+        return spans
 
+    def _combinations(self, doc: Document, tokens: list[_Token]) -> list[Span]:
         spans: list[Span] = []
         i = 0
         while i < len(tokens):
@@ -242,7 +348,12 @@ class NameRecognizer(Recognizer):
             if matched is not None:
                 span, end = matched
                 if not self._is_public_figure(doc, span, tokens, i, end):
-                    spans.append(span)
+                    if self._is_cyrillic_cardholder(doc, span):
+                        spans.append(
+                            Span(span.start, span.end, "CARDHOLDER", span.score, self.name)
+                        )
+                    else:
+                        spans.append(span)
                 i = end
                 continue
             token = tokens[i]
@@ -258,6 +369,37 @@ class NameRecognizer(Recognizer):
                         spans.append(span)
             i += 1
         return spans
+
+    def _latin_names(self, doc: Document) -> list[Span]:
+        spans: list[Span] = []
+        for match in LATIN_NAME_RE.finditer(doc.norm):
+            words = [w for w in match.groups() if w]
+            if any(w in LATIN_STOP_WORDS for w in words):
+                continue
+            if self._has_cardholder_context(doc, match.start(), match.end()):
+                spans.append(Span(match.start(), match.end(), "CARDHOLDER", 0.85, self.name))
+            elif self._is_latin_person(words):
+                spans.append(Span(match.start(), match.end(), "PERSON", 0.7, self.name))
+        return spans
+
+    def _has_cardholder_context(self, doc: Document, start: int, end: int) -> bool:
+        if find_keyword(doc, start, end, CARDHOLDER_CONTEXT, 40, "before") is not None:
+            return True
+        before = doc.norm[max(0, start - 60) : start]
+        return CARD_NUMBER_RE.search(before) is not None
+
+    @staticmethod
+    def _is_cyrillic_cardholder(doc: Document, span: Span) -> bool:
+        return (
+            find_keyword(doc, span.start, span.end, CYRILLIC_CARDHOLDER_CONTEXT, 30, "before")
+            is not None
+        )
+
+    @staticmethod
+    def _is_latin_person(words: list[str]) -> bool:
+        if words[0] in TRANSLIT_NAMES:
+            return True
+        return len(words) >= 2 and _LATIN_SURN_END.search(words[1]) is not None
 
     def _tokenize(self, doc: Document) -> list[_Token]:
         tokens: list[_Token] = []
@@ -275,7 +417,7 @@ class NameRecognizer(Recognizer):
             return
         roles: set[str] = set()
         normal = token.text
-        for parse in _parse(token.text):
+        for parse in parse_word(token.text):
             if parse.score < 0.05:
                 continue
             if "Name" in parse.tag:

@@ -9,7 +9,7 @@ from pii_guard.core.context import compile_keywords, find_keyword
 from pii_guard.core.models import Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
-from pii_guard.recognizers.names import FUNCTION_WORDS, get_morph
+from pii_guard.recognizers.names import FUNCTION_WORDS, parse_word
 
 POSTAL_CODE_RE = re.compile(r"(?<!\d)[1-6]\d{5}(?!\d)")
 
@@ -203,7 +203,7 @@ class AddressRecognizer(Recognizer):
         if _ADJECTIVE_END.search(word):
             return True
         try:
-            return any("ADJF" in parse.tag for parse in get_morph().parse(word))
+            return any("ADJF" in parse.tag for parse in parse_word(word))
         except Exception:
             return False
 
@@ -285,10 +285,10 @@ class AddressRecognizer(Recognizer):
     def _find_cities_without_marker(self, doc: Document) -> list[_Component]:
         cities: list[_Component] = []
         for match in WORD_RE.finditer(doc.norm):
-            word = match.group(0)
-            if self._city_normal(word) not in CITIES:
-                continue
+            # сначала дешёвая проверка контекста, морфология — только для кандидатов
             if find_keyword(doc, match.start(), match.end(), ADDRESS_CONTEXT, 40, "before") is None:
+                continue
+            if self._city_normal(match.group(0)) not in CITIES:
                 continue
             cities.append(
                 _Component(match.start(), match.end(), match.start(), match.end(), "city")
@@ -300,7 +300,7 @@ class AddressRecognizer(Recognizer):
         if word in CITIES:
             return word
         try:
-            return str(get_morph().parse(word)[0].normal_form)
+            return str(parse_word(word)[0].normal_form)
         except Exception:
             return word
 

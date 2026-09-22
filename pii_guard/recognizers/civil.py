@@ -7,7 +7,8 @@ from pii_guard.core.models import Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
 from pii_guard.recognizers.address import CITIES, COUNTRIES
-from pii_guard.recognizers.names import get_morph
+from pii_guard.recognizers.base import cut_period
+from pii_guard.recognizers.names import parse_word
 
 SETTLEMENT_MARKERS = r"(?:г\.|гор\.|город|с\.|село|пос\.|дер\.)"
 
@@ -15,9 +16,6 @@ BIRTH_PLACE_MARKERS = r"(?:место рождения|м\.р\.|м/р|уроже
 FIELD_MARKERS = r"(?:дата|паспорт|адрес|гражданство|телефон|снилс|инн|пол)"
 BIRTH_PLACE_RE = re.compile(
     rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:—]?\s*(.+?)(?=;|\n|,\s*(?:{FIELD_MARKERS})|$)"
-)
-_ABBREVIATIONS = frozenset(
-    {"г", "гор", "обл", "с", "пос", "дер", "р-н", "респ", "пгт", "ст", "ул", "д", "корп", "кв"}
 )
 
 BORN_RE = re.compile(
@@ -49,7 +47,7 @@ class CivilRecognizer(Recognizer):
     def _birth_places(self, doc: Document) -> list[Span]:
         spans: list[Span] = []
         for match in BIRTH_PLACE_RE.finditer(doc.norm):
-            raw = self._cut_period(match.group(1))
+            raw = cut_period(match.group(1))
             stripped = re.sub(rf"^(?:{SETTLEMENT_MARKERS})\s*", "", raw)
             if len(stripped) > _MAX_BIRTH_PLACE:
                 stripped = stripped[:_MAX_BIRTH_PLACE]
@@ -59,15 +57,6 @@ class CivilRecognizer(Recognizer):
             start = match.start(1) + idx
             spans.append(Span(start, start + len(stripped), "BIRTH_PLACE", 0.9, self.name))
         return spans
-
-    @staticmethod
-    def _cut_period(value: str) -> str:
-        for match in re.finditer(r"\.\s+", value):
-            before = value[: match.start()]
-            word = re.search(r"([а-яё0-9-]+)$", before)
-            if word is None or (len(word.group(1)) > 3 and word.group(1) not in _ABBREVIATIONS):
-                return before
-        return value
 
     def _born_places(self, doc: Document) -> list[Span]:
         spans: list[Span] = []
@@ -92,14 +81,14 @@ class CivilRecognizer(Recognizer):
         if normal in CITIES or normal in COUNTRIES:
             return True
         try:
-            return any("Geox" in parse.tag for parse in get_morph().parse(word))
+            return any("Geox" in parse.tag for parse in parse_word(word))
         except Exception:
             return False
 
     @staticmethod
     def _normal_form(word: str) -> str:
         try:
-            return str(get_morph().parse(word)[0].normal_form)
+            return str(parse_word(word)[0].normal_form)
         except Exception:
             return word
 

@@ -124,3 +124,38 @@ def test_passport_series_with_combined_number() -> None:
 
 def test_passport_series_with_no_number() -> None:
     assert _mask("паспорт серия 4509 № 123456") != "паспорт серия 4509 № 123456"
+
+
+def test_issuer_oufms() -> None:
+    text = "выдан ОУФМС России по г. Москве 01.02.2010"
+    result = _mask(text)
+    assert "ОУФМС" not in result
+    assert "Москве" not in result
+    assert result.startswith("выдан ")
+
+
+def test_issuer_otdel_ufms() -> None:
+    text = (
+        "Паспорт выдан Отделом УФМС России по Московской обл. в Одинцовском р-не, "
+        "дата выдачи 12.05.2015"
+    )
+    result = _mask(text)
+    assert "Отделом" not in result
+    assert "УФМС" not in result
+    assert "дата выдачи" in result
+
+
+def test_issuer_gu_mvd() -> None:
+    text = "кем выдан: ГУ МВД России по г. Санкт-Петербургу; код подразделения 780-001"
+    result = _mask(text)
+    assert "ГУ" not in result
+    assert "МВД" not in result
+    assert "код подразделения" in result
+
+
+def test_issuer_no_organ() -> None:
+    assert "PASSPORT_ISSUER" not in _types("выдан 01.02.2010")
+
+
+def test_issuer_tovar() -> None:
+    assert "PASSPORT_ISSUER" not in _types("Товар выдан покупателю")

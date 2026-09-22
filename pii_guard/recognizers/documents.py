@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
-from pii_guard.core.context import compile_keywords
+from pii_guard.core.context import compile_keywords, find_keyword
+from pii_guard.core.models import Span
+from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
-from pii_guard.recognizers.base import PatternRule, RegexRecognizer
+from pii_guard.recognizers.base import PatternRule, RegexRecognizer, cut_period
 from pii_guard.recognizers.validators import snils_valid
 
 PASSPORT_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?(?:№\s*)?\d{6}(?!\d)")
@@ -35,6 +37,21 @@ DIVISION_PASSPORT_CONTEXT = compile_keywords(["паспорт", "выдан"])
 DRIVER_CONTEXT = compile_keywords(["водительск", "ву", "в/у", "права", "удостоверени"])
 SNILS_CONTEXT = compile_keywords(["снилс", "страхов"])
 FOREIGN_CONTEXT = compile_keywords(["загран", "заграничн"])
+
+ISSUER_MARKERS = (
+    r"(?:выдан|выдана|выдано|кем выдан|орган выдачи|выдавший орган|орган, выдавший паспорт)"
+)
+ORGAN_MARKERS = (
+    r"(?:уфмс|оуфмс|фмс|увм|гувм|овм|мвд|увд|овд|ровд|оувд|гу|тп|"
+    r"отдел|отделом|отделением|отделение|управление|управлением|паспортно-визов|пвс|милиции|полиции)"
+)
+ISSUER_RE = re.compile(rf"(?<!\w){ISSUER_MARKERS}\s*[:]?\s*")
+ISSUER_DATE_RE = re.compile(r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[а-яё]+")
+ISSUER_DIVISION_RE = re.compile(r"\d{3}-\d{3}")
+ISSUER_TERMINATORS = ("код подразделения", "к/п", "дата выдачи")
+ORGAN_PHRASE_RE = re.compile(rf"(?<!\w)({ORGAN_MARKERS}(?:\s+[а-яё0-9-]+){{1,6}})(?!\w)")
+ISSUER_PASSPORT_CONTEXT = compile_keywords(["паспорт"])
+_MAX_ISSUER = 150
 
 
 def _passport_rules() -> Sequence[PatternRule]:
@@ -165,6 +182,59 @@ def _foreign_rules() -> Sequence[PatternRule]:
     )
 
 
+class PassportIssuerRecognizer(Recognizer):
+    name = "passport_issuer"
+    pii_types = frozenset({"PASSPORT_ISSUER"})
+
+    def find(self, doc: Document) -> Iterable[Span]:
+        spans: list[Span] = []
+        for match in ISSUER_RE.finditer(doc.norm):
+            value = self._extract_value(doc.norm, match.end())
+            if not value or not self._has_organ_marker(value):
+                continue
+            value = value.rstrip(", \t\n")[:_MAX_ISSUER]
+            if not value:
+                continue
+            spans.append(
+                Span(match.end(), match.end() + len(value), "PASSPORT_ISSUER", 0.9, self.name)
+            )
+        for match in ORGAN_PHRASE_RE.finditer(doc.norm):
+            if (
+                find_keyword(doc, match.start(), match.end(), ISSUER_PASSPORT_CONTEXT, 60, "before")
+                is None
+            ):
+                continue
+            spans.append(Span(match.start(1), match.end(1), "PASSPORT_ISSUER", 0.75, self.name))
+        return spans
+
+    @staticmethod
+    def _extract_value(norm: str, start: int) -> str:
+        candidates: list[int] = []
+        for pattern in (ISSUER_DATE_RE, ISSUER_DIVISION_RE):
+            match = pattern.search(norm, start)
+            if match is not None:
+                candidates.append(match.start())
+        for terminator in ISSUER_TERMINATORS:
+            idx = norm.find(terminator, start)
+            if idx != -1:
+                candidates.append(idx)
+        for sep in (";", "\n"):
+            idx = norm.find(sep, start)
+            if idx != -1:
+                candidates.append(idx)
+        period = cut_period(norm[start:])
+        if len(period) < len(norm) - start:
+            candidates.append(start + len(period))
+        if not candidates:
+            return norm[start:]
+        return norm[start : min(candidates)]
+
+    @staticmethod
+    def _has_organ_marker(value: str) -> bool:
+        first_words = " ".join(value.split()[:3])
+        return re.search(ORGAN_MARKERS, first_words) is not None
+
+
 def recognizers() -> list[Recognizer]:
     return [
         RegexRecognizer("passport", _passport_rules()),
@@ -172,4 +242,5 @@ def recognizers() -> list[Recognizer]:
         RegexRecognizer("driver_license", _driver_rules()),
         RegexRecognizer("snils", _snils_rules()),
         RegexRecognizer("foreign_passport", _foreign_rules()),
+        PassportIssuerRecognizer(),
     ]

@@ -97,3 +97,32 @@ def test_ordinary_words_not_masked() -> None:
 
 def test_saltykov_shchedrin_not_masked() -> None:
     assert not _has_person("писатель Салтыков-Щедрин")
+
+
+def _has_cardholder(text: str) -> bool:
+    return any(span.pii_type == "CARDHOLDER" for span in _engine().analyze(text, CHECKER_PROFILE))
+
+
+def test_cardholder_latin() -> None:
+    assert _mask("держатель карты IVAN IVANOV") == "держатель карты I. I."
+
+
+def test_cardholder_name_on_card() -> None:
+    assert _has_cardholder("имя на карте: ivan ivanov")
+
+
+def test_cardholder_with_card_number() -> None:
+    assert _has_cardholder("карта 4276 1234 5678 9012, SERGEY PETROV")
+
+
+def test_cardholder_cyrillic() -> None:
+    assert _has_cardholder("держатель карты Иванов Иван")
+
+
+def test_latin_name_without_context_person() -> None:
+    assert _has_person("IVAN PETROV")
+
+
+def test_latin_stop_words_not_masked() -> None:
+    assert not _has_person("VISA CARD")
+    assert not _has_person("Mastercard Gold")

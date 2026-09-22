@@ -10,6 +10,36 @@ from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
 from pii_guard.recognizers.validators import digits
 
+_ABBREVIATIONS = frozenset(
+    {
+        "г",
+        "гор",
+        "обл",
+        "с",
+        "пос",
+        "дер",
+        "р-н",
+        "р-не",
+        "респ",
+        "пгт",
+        "ст",
+        "ул",
+        "д",
+        "корп",
+        "кв",
+    }
+)
+
+
+def cut_period(value: str) -> str:
+    """Cut a value at the first period+space that follows a long non-abbreviation word."""
+    for match in re.finditer(r"\.\s+", value):
+        before = value[: match.start()]
+        word = re.search(r"([а-яё0-9-]+)$", before)
+        if word is None or (len(word.group(1)) > 3 and word.group(1) not in _ABBREVIATIONS):
+            return before
+    return value
+
 
 @dataclass(frozen=True, slots=True)
 class PatternRule:
