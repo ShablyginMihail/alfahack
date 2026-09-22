@@ -1,0 +1,24 @@
+partial_specs:
+  PASSPORT: {keep_start: 2, keep_end: 2}
+  CARD_NUMBER: {keep_start: 4, keep_end: 4}
+  PHONE: {keep_start: 1, keep_end: 2}
+  INN: {keep_start: 2, keep_end: 2}
+  DRIVER_LICENSE: {keep_start: 2, keep_end: 2}
+  FOREIGN_PASSPORT: {keep_start: 2, keep_end: 2}
+  SNILS: {keep_start: 0, keep_end: 2}
+  "PASSPORT:series": {keep_start: 2, keep_end: 0}
+  "PASSPORT:number": {keep_start: 0, keep_end: 2}
+  "DRIVER_LICENSE:series": {keep_start: 2, keep_end: 0}
+  "DRIVER_LICENSE:number": {keep_start: 0, keep_end: 2}
+
+custom_types:
+  OMS_POLICY:
+    label: ПОЛИС_ОМС
+    description: Полис ОМС
+    rules:
+      - regex: "(?<!\\d)\\d{16}(?!\\d)"
+        base_score: 0.2
+        context: [полис, омс]
+        context_bonus: 0.6
+        context_window: 40
+        validator: luhn

@@ -1,0 +1,35 @@
+defaults:
+  mask_style: partial
+  unmask: true
+  strict: false
+
+systems:
+  checker:
+    enabled: true
+    pii_types: all
+    mask_style: partial
+  crm-assistant:
+    enabled: true
+    pii_types: all
+    mask_style: token
+    strict: true
+    api_key_sha256: 373b3d31a9ea533e96852d611bd738c51fe91aad00ff5f2a107dc082047919d3
+  marketing-bot:
+    enabled: true
+    pii_types: [PERSON, PHONE, EMAIL, CARD_NUMBER, PIN]
+    mask_style: label
+    unmask: false
+    api_key_sha256: e8f6acdeab8f815fcec209ba33a2b90c56c7f4fd3f53c54a458d77e68e6ff760
+    rules:
+      - type: PIN
+        requires_any: [CARD_NUMBER]
+  support-chat:
+    enabled: true
+    pii_types: all
+    mask_style: partial
+    api_key_sha256: 20cae7b7711f0f29aa57326f091489362e4530e1dea4c50f29201b55f7eec75c
+  legacy-crm:
+    enabled: false
+    pii_types: all
+    mask_style: partial
+    api_key_sha256: a80f34ddab473443b34d9e65b34b069977e34fc83358ddceb279135f125ae291
