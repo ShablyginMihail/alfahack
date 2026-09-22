@@ -47,9 +47,22 @@ def load_golden(paths: list[str]) -> list[tuple[str, list[GoldSpan], str]]:
     return phrases
 
 
-def expected_mask(text: str, gold: list[GoldSpan], masker: DefaultMasker, profile: Profile) -> str:
+def expected_mask(
+    text: str,
+    gold: list[GoldSpan],
+    masker: DefaultMasker,
+    profile: Profile,
+    found_spans: list[Span],
+) -> str:
     ordered = sorted(gold, key=lambda s: s.start)
-    spans = [Span(s.start, s.end, s.pii_type, 1.0, "gold") for s in ordered]
+    found_by_pos = {(s.start, s.end, s.pii_type): s for s in found_spans}
+    spans = []
+    for s in ordered:
+        part = None
+        found = found_by_pos.get((s.start, s.end, s.pii_type))
+        if found is not None:
+            part = found.part
+        spans.append(Span(s.start, s.end, s.pii_type, 1.0, "gold", part=part))
     return masker.apply(text, spans, profile).text
 
 
@@ -182,7 +195,8 @@ def evaluate(phrases, profile: Profile) -> dict:
         result = engine.mask(text, profile)
         times.append((time.perf_counter() - start) * 1000)
 
-        expected = expected_mask(text, gold, masker, profile)
+        found_spans = engine.analyze(text, profile)
+        expected = expected_mask(text, gold, masker, profile, found_spans)
         similarities.append(1 - Levenshtein.normalized_distance(result.text, expected))
 
         if unmask(result.text, MappingRecord("fp", result.text, result.replacements)) == text:
