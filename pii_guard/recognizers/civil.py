@@ -8,7 +8,7 @@ from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
 from pii_guard.recognizers.address import CITIES, COUNTRIES
 from pii_guard.recognizers.base import cut_period
-from pii_guard.recognizers.names import parse_word
+from pii_guard.recognizers.names import parse_word, public_figure_context
 
 SETTLEMENT_MARKERS = r"(?:г\.|гор\.|город|с\.|село|пос\.|дер\.)"
 PLACE_MARKERS = r"(?:г\.|гор\.|город|с\.|село|пос\.|дер\.|обл\.|область|р-н|район|край|республика)"
@@ -18,8 +18,16 @@ BIRTH_PLACE_RE = re.compile(
     rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:-]?\s*(.+?)(?=;|\n|,\s*(?!{PLACE_MARKERS})|$)"
 )
 
+BORN_DATE = (
+    r"(?:\d{1,2}[./-]\d{1,2}[./-]\d{2,4}"
+    r"|\d{1,2}\s+[а-яё]+\s+\d{4}"
+    r"|в\s+\d{4})"
+    r"\s*(?:года|году|г\.)?"
+)
 BORN_RE = re.compile(
-    r"(?<!\w)(?:родился|родилась)\s+в\s+(?:городе\s+)?([а-яё]+(?:-[а-яё]+)*(?:\s+[а-яё]+(?:-[а-яё]+)*)?)(?!\w)"
+    rf"(?<!\w)(?:родился|родилась)\s+(?:{BORN_DATE}\s+)?в\s+"
+    rf"(?:(?:г|гор|с|пос|дер)\.\s*|(?:городе|город|селе|село|поселке|деревне)\s+)?"
+    rf"([а-яё]+(?:-[а-яё]+)*(?:\s+[а-яё]+(?:-[а-яё]+)*)?)(?!\w)"
 )
 
 CITIZENSHIP_MARKERS = r"(?:гражданство|гражданин|гражданка|подданство|citizenship)"
@@ -50,6 +58,8 @@ class CivilRecognizer(Recognizer):
     def _birth_places(self, doc: Document) -> list[Span]:
         spans: list[Span] = []
         for match in BIRTH_PLACE_RE.finditer(doc.norm):
+            if public_figure_context(doc, match.start(1)):
+                continue
             raw = cut_period(match.group(1))
             stripped = re.sub(rf"^(?:{SETTLEMENT_MARKERS})\s*", "", raw)
             if len(stripped) > _MAX_BIRTH_PLACE:
@@ -64,6 +74,8 @@ class CivilRecognizer(Recognizer):
     def _born_places(self, doc: Document) -> list[Span]:
         spans: list[Span] = []
         for match in BORN_RE.finditer(doc.norm):
+            if public_figure_context(doc, match.start(1)):
+                continue
             place = match.group(1)
             if not self._is_place(place):
                 continue
@@ -86,17 +98,11 @@ class CivilRecognizer(Recognizer):
         normal = CivilRecognizer._normal_form(word)
         if normal in CITIES or normal in COUNTRIES:
             return True
-        try:
-            return any("Geox" in parse.tag for parse in parse_word(word))
-        except Exception:
-            return False
+        return any("Geox" in parse.tag for parse in parse_word(word))
 
     @staticmethod
     def _normal_form(word: str) -> str:
-        try:
-            return str(parse_word(word)[0].normal_form)
-        except Exception:
-            return word
+        return str(parse_word(word)[0].normal_form)
 
 
 def recognizers() -> list[Recognizer]:

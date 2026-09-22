@@ -8,6 +8,7 @@ from pii_guard.core.context import compile_keywords, find_keyword
 from pii_guard.core.models import Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
+from pii_guard.recognizers.names import public_figure_context
 
 MONTH_PATTERN = (
     r"(?:январ|феврал|сентябр|октябр|ноябр|декабр|август|апрел|март|ма[йяе]|июн|июл|сен|"
@@ -65,6 +66,7 @@ WORDS_DATE_RE = re.compile(
 )
 YEAR_WORDS_ONLY_RE = re.compile(rf"(?<!\w)({YEAR_WORDS})\s+(?:году|года|год|г\.|г)(?!\w)")
 YEAR_GR_RE = re.compile(r"(?<!\d)(\d{4})\s*(?:г\.\s*р\.|года\s+рождения)(?!\w)")
+YEAR_NUMERIC_RE = re.compile(r"(?<!\d)(\d{4})\s+(?:году|года|г\.)(?!\w)")
 
 BIRTH_CONTEXT = compile_keywords(
     ["дата рождения", "д.р.", "д/р", "родил", "рожден", "день рождения"]
@@ -124,6 +126,8 @@ class DateRecognizer(Recognizer):
         for match in YEAR_GR_RE.finditer(doc.norm):
             # маркер «г.р.» входит в само совпадение, контекст искать не нужно
             spans.append(Span(match.start(1), match.end(1), "BIRTH_DATE", 0.9, self.name))
+        for match in YEAR_NUMERIC_RE.finditer(doc.norm):
+            self._collect(spans, self._classify_year_only(doc, match.start(1), match.end(1)))
         return spans
 
     @staticmethod
@@ -135,6 +139,7 @@ class DateRecognizer(Recognizer):
         birth_before = find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before")
         birth_gr = find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both")
         issue = find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before")
+        pii_type: str | None = None
         if birth_before is not None or birth_gr is not None or issue is not None:
             candidates: list[tuple[int, str]] = []
             if birth_before is not None:
@@ -143,11 +148,12 @@ class DateRecognizer(Recognizer):
                 candidates.append((birth_gr, "BIRTH_DATE"))
             if issue is not None:
                 candidates.append((issue, "PASSPORT_ISSUE_DATE"))
-            return min(candidates, key=lambda item: item[0])[1]
-        birth_after = find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after")
-        if birth_after is not None:
-            return "BIRTH_DATE"
-        return None
+            pii_type = min(candidates, key=lambda item: item[0])[1]
+        elif find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after") is not None:
+            pii_type = "BIRTH_DATE"
+        if pii_type == "BIRTH_DATE" and public_figure_context(doc, start):
+            return None
+        return pii_type
 
     def _classify(self, doc: Document, start: int, end: int, year: int) -> Span | None:
         pii_type = self._context_type(doc, start, end)
@@ -155,6 +161,8 @@ class DateRecognizer(Recognizer):
             return Span(start, end, pii_type, 0.9, self.name)
         normalized = _normalize_year(year)
         if _YEAR_MIN <= normalized <= _YEAR_MAX:
+            if public_figure_context(doc, start):
+                return None
             return Span(start, end, "BIRTH_DATE", 0.4, self.name)
         return None
 

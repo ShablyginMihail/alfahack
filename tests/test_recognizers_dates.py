@@ -190,3 +190,8 @@ def test_year_gr_no_space() -> None:
 
 def test_year_of_birth_words() -> None:
     _span_at("1990 года рождения", "1990", "BIRTH_DATE")
+
+
+def test_public_figure_birth_date_not_masked() -> None:
+    assert "BIRTH_DATE" not in _types("поэт Александр Пушкин родился в Москве")
+    assert "BIRTH_DATE" not in _types("Юрий Гагарин родился 9 марта 1934 года в Клушине")

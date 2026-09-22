@@ -91,3 +91,38 @@ def test_birth_place_cut_on_pin() -> None:
     spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "BIRTH_PLACE"]
     assert spans
     assert text[spans[0].start : spans[0].end] == "САРАТОВ"
+
+
+def _span_at(text: str, value: str, pii_type: str) -> None:
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
+    start = text.index(value)
+    end = start + len(value)
+    matching = [s for s in spans if s.pii_type == pii_type and s.start == start and s.end == end]
+    assert matching, f"no {pii_type} span at {value!r} in {text!r}"
+
+
+def test_born_date_then_place() -> None:
+    text = "родился 12 марта 1985 года в г. Саратов"
+    _span_at(text, "Саратов", "BIRTH_PLACE")
+    _span_at(text, "12 марта 1985", "BIRTH_DATE")
+
+
+def test_born_year_then_place() -> None:
+    text = "родилась в 1990 году в Казани"
+    _span_at(text, "Казани", "BIRTH_PLACE")
+    _span_at(text, "1990", "BIRTH_DATE")
+
+
+def test_born_numeric_date_then_place() -> None:
+    text = "Родился 03.12.1985 в городе Самаре"
+    _span_at(text, "Самаре", "BIRTH_PLACE")
+
+
+def test_born_place_with_personal_context() -> None:
+    text = "Клиент Иванов родился в Москве"
+    _span_at(text, "Москве", "BIRTH_PLACE")
+
+
+def test_public_figure_birth_place_not_masked() -> None:
+    assert "BIRTH_PLACE" not in _types("поэт Александр Пушкин родился в Москве")
+    assert "BIRTH_PLACE" not in _types("Юрий Гагарин родился 9 марта 1934 года в Клушине")

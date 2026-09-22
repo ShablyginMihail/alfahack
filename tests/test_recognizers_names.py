@@ -64,8 +64,8 @@ def test_single_surn_with_context() -> None:
     assert _mask("Клиент Смирнов позвонил") == "Клиент С. позвонил"
 
 
-def test_single_surn_without_context() -> None:
-    assert _mask("Смирнов позвонил") == "Смирнов позвонил"
+def test_single_unambiguous_surname_masked() -> None:
+    assert _mask("Смирнов позвонил") == "С. позвонил"
 
 
 def test_poet_pushkin_not_masked() -> None:
@@ -145,3 +145,25 @@ def test_cardholder_vs_personal_context() -> None:
     assert cardholder and person
     assert text[cardholder[0].start : cardholder[0].end] == "Ivan Ivanov"
     assert text[person[0].start : person[0].end] == "Петров Владимир Владимирович"
+
+
+def _span_at(text: str, value: str, pii_type: str) -> None:
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
+    start = text.index(value)
+    end = start + len(value)
+    matching = [s for s in spans if s.pii_type == pii_type and s.start == start and s.end == end]
+    assert matching, f"no {pii_type} span at {value!r} in {text!r}"
+
+
+def test_single_name_dative() -> None:
+    _span_at("Позвоните Марии по номеру 8 999 123 45 67", "Марии", "PERSON")
+
+
+def test_single_surname_dative() -> None:
+    _span_at("Передайте Смирнову, что карта готова", "Смирнову", "PERSON")
+
+
+def test_single_name_not_person() -> None:
+    assert not _has_person("Роман прочитан за вечер")
+    assert not _has_person("Встреча в Москве перенесена")
+    assert not _has_person("Пушкин написал много стихов")

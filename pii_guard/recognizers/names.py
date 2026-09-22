@@ -344,6 +344,34 @@ def _load_public_figures() -> frozenset[str]:
 PUBLIC_FIGURES = _load_public_figures()
 
 
+def _sentence_start(doc: Document, position: int) -> int:
+    norm = doc.norm
+    for i in range(position - 1, -1, -1):
+        if norm[i] in ".!?\n":
+            return i + 1
+    return 0
+
+
+def mentions_public_figure(doc: Document, position: int) -> bool:
+    start = _sentence_start(doc, position)
+    sentence = doc.norm[start:position]
+    for word in re.findall(r"[а-яё]+(?:-[а-яё]+)*", sentence):
+        normal = str(parse_word(word)[0].normal_form)
+        if normal in PUBLIC_FIGURES:
+            return True
+    return False
+
+
+def public_figure_context(doc: Document, position: int) -> bool:
+    if not mentions_public_figure(doc, position):
+        return False
+    sent_start = _sentence_start(doc, position)
+    return (
+        find_keyword(doc, position, position, PERSONAL_CONTEXT, position - sent_start, "before")
+        is None
+    )
+
+
 def _load_cities() -> frozenset[str]:
     path = Path(__file__).resolve().parent.parent.parent / "data" / "dicts" / "cities.txt"
     if not path.exists():
@@ -429,18 +457,54 @@ class NameRecognizer(Recognizer):
                 i = end
                 continue
             token = tokens[i]
-            if token.roles & {"SURN", "NAME"} and not (token.roles & {"PATR"}):
-                role = "SURN" if "SURN" in token.roles else "NAME"
-                if (
-                    find_keyword(doc, token.start, token.end, PERSONAL_CONTEXT, 30, "before")
-                    is not None
-                ):
-                    score = 0.7 if role == "SURN" else 0.6
-                    span = Span(token.start, token.end, "PERSON", score, self.name)
-                    if not self._is_public_figure_single(doc, span, token):
-                        spans.append(span)
+            single = self._single_token_person(doc, token)
+            if single is not None:
+                spans.append(single)
             i += 1
         return spans
+
+    def _single_token_person(self, doc: Document, token: _Token) -> Span | None:
+        if not (token.roles & {"SURN", "NAME"}) or (token.roles & {"PATR"}):
+            return None
+        role = "SURN" if "SURN" in token.roles else "NAME"
+        if find_keyword(doc, token.start, token.end, PERSONAL_CONTEXT, 30, "before") is not None:
+            score = 0.7 if role == "SURN" else 0.6
+            span = Span(token.start, token.end, "PERSON", score, self.name)
+            if not self._is_public_figure_single(doc, span, token):
+                return span
+            return None
+        if self._single_person_without_context(doc, token):
+            span = Span(token.start, token.end, "PERSON", 0.55, self.name)
+            if not self._is_public_figure_single(doc, span, token):
+                return span
+        return None
+
+    def _single_person_without_context(self, doc: Document, token: _Token) -> bool:
+        if token.text in FUNCTION_WORDS or token.text in ABBREVIATION_STOP_WORDS:
+            return False
+        if self._is_place_word(token.text):
+            return False
+        if self._starts_uppercase_not_sentence_start(doc, token):
+            return True
+        return self._unambiguous_name(token.text)
+
+    @staticmethod
+    def _starts_uppercase_not_sentence_start(doc: Document, token: _Token) -> bool:
+        if not doc.text[token.start].isupper():
+            return False
+        left = token.start - 1
+        while left >= 0 and doc.text[left].isspace():
+            left -= 1
+        if left < 0:
+            return False
+        return doc.text[left] not in ".!?"
+
+    @staticmethod
+    def _unambiguous_name(word: str) -> bool:
+        parses = [p for p in parse_word(word) if p.score >= 0.05]
+        if not parses:
+            return False
+        return all(any(tag in p.tag for tag in ("Name", "Surn", "Patr")) for p in parses)
 
     def _latin_names(self, doc: Document) -> list[Span]:
         spans: list[Span] = []
