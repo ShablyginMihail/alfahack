@@ -13,6 +13,8 @@ from pii_guard.main import create_app
 from pii_guard.settings import Settings
 from tests.helpers import make_settings, write_config
 
+PROCESS_PATH = "/process"
+
 TOKEN_KEY = secrets.token_urlsafe(16)
 
 FIO = "Иванов Иван Иванович"
@@ -116,24 +118,24 @@ async def test_process_flow_no_pii_leak(tmp_path, capsys) -> None:
         payload_id = "p1"
 
         resp = await client.post(
-            "/process", json={"payload": REQUEST_TEXT, "payload_id": payload_id}
+            PROCESS_PATH, json={"payload": REQUEST_TEXT, "payload_id": payload_id}
         )
         assert resp.status_code == 200
         masked = resp.json()["result"]
         assert all(value not in masked for value in PII_VALUES)
 
         resp = await client.post(
-            "/process", json={"payload": REQUEST_TEXT, "payload_id": payload_id}
+            PROCESS_PATH, json={"payload": REQUEST_TEXT, "payload_id": payload_id}
         )
         assert resp.status_code == 200
         assert resp.json()["result"] == masked
 
-        resp = await client.post("/process", json={"payload": masked, "payload_id": payload_id})
+        resp = await client.post(PROCESS_PATH, json={"payload": masked, "payload_id": payload_id})
         assert resp.status_code == 200
         assert resp.json()["result"] == REQUEST_TEXT
 
         changed = masked + " уточните данные"
-        resp = await client.post("/process", json={"payload": changed, "payload_id": payload_id})
+        resp = await client.post(PROCESS_PATH, json={"payload": changed, "payload_id": payload_id})
         assert resp.status_code == 200
 
         out, err, events = _capture(capsys)
@@ -182,18 +184,18 @@ async def test_mask_unmask_chat_no_pii_leak(tmp_path, capsys) -> None:
 async def test_validation_errors_do_not_echo_input(tmp_path, capsys) -> None:
     settings = _settings(tmp_path)
     async with _client_for(settings) as (_app, client):
-        resp = await client.post("/process", json={"fio": FIO, "payload_id": "x"})
+        resp = await client.post(PROCESS_PATH, json={"fio": FIO, "payload_id": "x"})
         assert resp.status_code == 422
         assert all(value not in resp.text for value in PII_VALUES)
 
         broken = f'{{"payload": "Клиент {FIO}, паспорт {PASSPORT}", "payload_id": "x"'
         resp = await client.post(
-            "/process", content=broken, headers={"content-type": "application/json"}
+            PROCESS_PATH, content=broken, headers={"content-type": "application/json"}
         )
         assert resp.status_code == 400
         assert all(value not in resp.text for value in PII_VALUES)
 
-        resp = await client.post("/process", json={"payload": REQUEST_TEXT})
+        resp = await client.post(PROCESS_PATH, json={"payload": REQUEST_TEXT})
         assert resp.status_code == 422
         assert all(value not in resp.text for value in PII_VALUES)
 
@@ -212,7 +214,7 @@ async def test_internal_error_does_not_leak_pii(tmp_path, capsys) -> None:
 
         app.state.process_service.handle = _boom
 
-        resp = await client.post("/process", json={"payload": REQUEST_TEXT, "payload_id": "p1"})
+        resp = await client.post(PROCESS_PATH, json={"payload": REQUEST_TEXT, "payload_id": "p1"})
         assert resp.status_code == 500
         body = resp.json()
         assert body["error"] == "internal_error"
