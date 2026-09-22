@@ -147,3 +147,6 @@ class Engine:
     def mask(self, text: str, profile: Profile) -> MaskResult:
         spans = self.analyze(text, profile)
         return self._masker.apply(text, spans, profile)
+
+    def mask_spans(self, text: str, spans: Sequence[Span], profile: Profile) -> MaskResult:
+        return self._masker.apply(text, spans, profile)
