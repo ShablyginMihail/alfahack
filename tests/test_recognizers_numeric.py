@@ -90,8 +90,8 @@ def test_card_invalid_with_context() -> None:
     assert _mask("карта 1234567890123456") == "карта 1234********3456"
 
 
-def test_card_invalid_no_context_no_grouping_not_masked() -> None:
-    assert _mask("1234567890123456") == "1234567890123456"
+def test_card_invalid_whole_payload_masked() -> None:
+    assert _mask("1234567890123456") == "1234********3456"
 
 
 def test_ordinary_numbers_not_masked() -> None:
@@ -127,8 +127,8 @@ def test_inn_separated_masked() -> None:
     assert _mask("ИНН 7707 083 893") != "ИНН 7707 083 893"
 
 
-def test_inn_without_label_not_masked() -> None:
-    assert _mask("номер 7707083893") == "номер 7707083893"
+def test_labeled_number_whole_payload_masked() -> None:
+    assert _mask("номер 7707083893") == "номер 77******93"
 
 
 def test_cvv_short() -> None:

@@ -67,8 +67,8 @@ def test_city_no_context_not_masked() -> None:
     assert _mask("Москва — крупный город") == "Москва — крупный город"
 
 
-def test_street_single_not_masked() -> None:
-    assert _mask("улица Льва Толстого") == "улица Льва Толстого"
+def test_street_whole_payload_masked() -> None:
+    assert _mask("улица Льва Толстого") == "улица **** ********"
 
 
 def test_price_index_not_masked() -> None:

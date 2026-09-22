@@ -3,10 +3,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from pii_guard.core.engine import Engine, resolve_overlaps
+from pii_guard.core.masking import DefaultMasker
 from pii_guard.core.models import MaskResult, Replacement, Span
 from pii_guard.core.normalize import Document
-from pii_guard.core.policy import CombinationRule, Profile
+from pii_guard.core.policy import CHECKER_PROFILE, CombinationRule, Profile
 from pii_guard.core.registry import Recognizer, RecognizerRegistry
+from pii_guard.core.types import default_type_registry
+from pii_guard.settings import Settings
 from tests.helpers import PARTIAL_PROFILE
 
 
@@ -128,9 +131,10 @@ def test_analyze_threshold_filters_weak_spans() -> None:
 def test_analyze_strict_lowers_threshold() -> None:
     registry = _registry(FakeRecognizer("r", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.4)]))
     engine = Engine(registry, LabelMasker())
-    assert engine.analyze("12345", PARTIAL_PROFILE) == []
+    # текст длиннее значения, чтобы не сработало правило «весь payload — одно значение»
+    assert engine.analyze("12345 текст", PARTIAL_PROFILE) == []
     strict = Profile(name="strict", strict=True)
-    assert engine.analyze("12345", strict) == [_span(0, 5, "PHONE", 0.4)]
+    assert engine.analyze("12345 текст", strict) == [_span(0, 5, "PHONE", 0.4)]
 
 
 def test_analyze_filters_pii_types() -> None:
@@ -204,3 +208,54 @@ def test_mask_empty_text() -> None:
     engine = Engine(_registry(), LabelMasker())
     result = engine.mask("", PARTIAL_PROFILE)
     assert result == MaskResult("", ())
+
+
+def _real_engine() -> Engine:
+    registry = RecognizerRegistry.from_modules(Settings().recognizer_modules)
+    return Engine(registry, DefaultMasker(default_type_registry()))
+
+
+def _mask_full(text: str) -> str:
+    return _real_engine().mask(text, CHECKER_PROFILE).text
+
+
+def test_whole_payload_street() -> None:
+    assert _mask_full("ул. Ленина") == "ул. ******"
+    assert _mask_full("улица Ленина") == "улица ******"
+
+
+def test_whole_payload_prospekt() -> None:
+    assert _mask_full("Ленинский проспект") == "********* проспект"
+
+
+def test_whole_payload_house_apartment() -> None:
+    assert _mask_full("д. 5") == "д. *"
+    assert _mask_full("кв. 12") == "кв. **"
+
+
+def test_whole_payload_region() -> None:
+    assert _mask_full("Московская область") == "********** область"
+    assert _mask_full("Республика Татарстан") == "Республика *********"
+    assert _mask_full("Краснодарский край") == "************* край"
+
+
+def test_whole_payload_street_with_number() -> None:
+    assert _mask_full("ул. 8 Марта") == "ул. *******"
+
+
+def test_whole_payload_date_numeric() -> None:
+    assert _mask_full("12.03.1985г.") == "**********г."
+
+
+def test_whole_payload_date_words() -> None:
+    text = "двенадцатое марта тысяча девятьсот восемьдесят пятого года"
+    result = _mask_full(text)
+    assert result == "*" * 53 + " года"
+
+
+def test_whole_payload_not_applied() -> None:
+    assert _mask_full("Москва — столица России") == "Москва — столица России"
+    assert _mask_full("Банкомат на Тверской") == "Банкомат на Тверской"
+    assert _mask_full("код 123") == "код 123"
+    assert _mask_full("Встреча в 10:30") == "Встреча в 10:30"
+    assert _mask_full("Сумма 1500 рублей") == "Сумма 1500 рублей"

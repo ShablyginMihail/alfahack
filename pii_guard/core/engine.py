@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import bisect
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Protocol
 
@@ -10,8 +11,14 @@ from pii_guard.core.models import MaskResult, Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.policy import Profile, apply_rules
 from pii_guard.core.registry import RecognizerRegistry
+from pii_guard.core.service_words import SERVICE_WORDS
 
 logger = structlog.get_logger()
+
+WHOLE_PAYLOAD_MAX_CHARS = 120
+WHOLE_PAYLOAD_MIN_SCORE = 0.2
+
+_WORD_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*")
 
 
 def resolve_overlaps(
@@ -93,8 +100,49 @@ class Engine:
             and span.end <= len(text)
             and span.score >= threshold(span.pii_type)
         ]
+
+        if len(text) <= WHOLE_PAYLOAD_MAX_CHARS:
+            weak = [
+                span
+                for span in candidates
+                if profile.allows(span.pii_type)
+                and span.start < span.end
+                and span.start >= 0
+                and span.end <= len(text)
+                and span.score >= WHOLE_PAYLOAD_MIN_SCORE
+                and span.score < threshold(span.pii_type)
+            ]
+            if weak and self._whole_payload_covered(doc, candidates, profile):
+                seen = set(filtered)
+                for span in weak:
+                    if span not in seen:
+                        filtered.append(span)
+                        seen.add(span)
+
         resolved = resolve_overlaps(filtered, self._priorities)
         return apply_rules(resolved, profile.rules)
+
+    @staticmethod
+    def _whole_payload_covered(
+        doc: Document,
+        candidates: list[Span],
+        profile: Profile,
+    ) -> bool:
+        chars = list(doc.norm)
+        for span in candidates:
+            if (
+                profile.allows(span.pii_type)
+                and span.start < span.end
+                and span.start >= 0
+                and span.end <= len(doc.norm)
+                and span.score >= WHOLE_PAYLOAD_MIN_SCORE
+            ):
+                for i in range(span.start, span.end):
+                    chars[i] = " "
+        words = _WORD_RE.findall("".join(chars))
+        if not words:
+            return True
+        return all(word in SERVICE_WORDS for word in words)
 
     def mask(self, text: str, profile: Profile) -> MaskResult:
         spans = self.analyze(text, profile)
