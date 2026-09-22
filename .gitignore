@@ -1,0 +1,35 @@
+# окружения и зависимости
+.venv/
+venv/
+env/
+node_modules/
+
+# кэши и артефакты Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage/
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# секреты
+.env
+.env.*
+!.env.example
+
+# сгенерированные данные и результаты
+eval/generated/
+eval/out/
+loadtest/results/
+*.zip
+
+# IDE и ОС
+.idea/
+.vscode/
+.DS_Store
