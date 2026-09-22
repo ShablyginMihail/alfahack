@@ -15,6 +15,7 @@ from pii_guard.config.loader import ConfigStore
 from pii_guard.core.concurrency import ConcurrencyGate
 from pii_guard.core.engine import Engine
 from pii_guard.core.policy import CHECKER_PROFILE
+from pii_guard.llm.client import create_llm_client
 from pii_guard.observability.logging import configure_logging, get_logger
 from pii_guard.observability.metrics import (
     endpoint_label,
@@ -176,6 +177,7 @@ def create_app(
 
     cipher = RecordCipher(encryption_key, hmac_key)
     config_store = ConfigStore(settings.config_dir, settings.recognizer_modules)
+    llm_client = create_llm_client(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -198,6 +200,7 @@ def create_app(
         app.state.process_service = service
         app.state.cipher = cipher
         app.state.config_store = config_store
+        app.state.llm_client = llm_client
         set_store_degraded(store.backend == "redis-degraded")
         _, engine = config_store.current()
         warm_up(engine)
@@ -205,6 +208,7 @@ def create_app(
             yield
         finally:
             await store.close()
+            await llm_client.aclose()
 
     app = FastAPI(
         title="PII Guard",

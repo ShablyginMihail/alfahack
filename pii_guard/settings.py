@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     config_dir: Path = Path("config")
     admin_token: SecretStr | None = None
+    llm_base_url: str | None = None
+    llm_api_key: SecretStr | None = None
+    llm_model: str = "default"
+    llm_timeout_seconds: float = 30.0
     recognizer_modules: list[str] = [
         "pii_guard.recognizers.numeric",
         "pii_guard.recognizers.documents",
