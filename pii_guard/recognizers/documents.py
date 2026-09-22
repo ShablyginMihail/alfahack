@@ -17,7 +17,7 @@ PASSPORT_SERIES_RE = re.compile(
 )
 PASSPORT_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:паспорта\s*)?[:.]?\s*(\d{6})(?!\d)")
 
-DIVISION_CODE_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}(?!\d)")
+DIVISION_CODE_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}(?![\s-]?\d)(?!\d)")
 
 DRIVER_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?\d{6}(?!\d)")
 DRIVER_OLD_RE = re.compile(r"(?<!\d)\d{2}[\s-]?[А-Яа-яЁё]{2}[\s-]?\d{6}(?!\d)")
@@ -105,6 +105,7 @@ def _division_rules() -> Sequence[PatternRule]:
             0.3,
             context=DIVISION_CONTEXT,
             context_bonus=0.5,
+            context_direction="before",
         ),
         PatternRule(
             "DIVISION_CODE",
@@ -112,6 +113,7 @@ def _division_rules() -> Sequence[PatternRule]:
             0.3,
             context=DIVISION_PASSPORT_CONTEXT,
             context_bonus=0.25,
+            context_direction="before",
         ),
     )
 
@@ -123,14 +125,14 @@ def _driver_rules() -> Sequence[PatternRule]:
             DRIVER_COMBINED_RE,
             0.2,
             context=DRIVER_CONTEXT,
-            context_bonus=0.5,
+            context_bonus=0.65,
         ),
         PatternRule(
             "DRIVER_LICENSE",
             DRIVER_OLD_RE,
             0.2,
             context=DRIVER_CONTEXT,
-            context_bonus=0.5,
+            context_bonus=0.65,
         ),
         PatternRule(
             "DRIVER_LICENSE",

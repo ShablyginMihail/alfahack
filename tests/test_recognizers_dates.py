@@ -151,3 +151,42 @@ def test_birth_date_type() -> None:
 
 def test_passport_issue_date_type() -> None:
     assert "PASSPORT_ISSUE_DATE" in _types("паспорт выдан 01.02.2010")
+
+
+def _span_at(text: str, value: str, pii_type: str) -> None:
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
+    start = text.index(value)
+    end = start + len(value)
+    matching = [s for s in spans if s.pii_type == pii_type and s.start == start and s.end == end]
+    assert matching, f"no {pii_type} span at {value!r} in {text!r}"
+
+
+def test_two_digit_year_issue_date() -> None:
+    _span_at("Паспорт выдан 01.07.00", "01.07.00", "PASSPORT_ISSUE_DATE")
+
+
+def test_issue_date_near_birth_words() -> None:
+    text = "Дата выдачи 1982-05-12, место рождения г. Самара"
+    _span_at(text, "1982-05-12", "PASSPORT_ISSUE_DATE")
+
+
+def test_birth_date_label_after_value() -> None:
+    _span_at("12.03.1985 — дата рождения", "12.03.1985", "BIRTH_DATE")
+
+
+def test_words_date_with_g_tail() -> None:
+    text = "Выдан десятого февраля тысяча девятьсот восемьдесят пятого г."
+    _span_at(text, "десятого февраля тысяча девятьсот восемьдесят пятого", "PASSPORT_ISSUE_DATE")
+
+
+def test_year_gr_in_phrase() -> None:
+    text = "Я, Петров Пётр Петрович, 1985 г.р., прошу перевыпустить карту"
+    _span_at(text, "1985", "BIRTH_DATE")
+
+
+def test_year_gr_no_space() -> None:
+    _span_at("клиент 1985г.р.", "1985", "BIRTH_DATE")
+
+
+def test_year_of_birth_words() -> None:
+    _span_at("1990 года рождения", "1990", "BIRTH_DATE")

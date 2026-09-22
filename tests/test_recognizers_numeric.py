@@ -179,3 +179,26 @@ def test_inn_separated_not_phone() -> None:
     assert phone and inn
     assert text[phone[0].start : phone[0].end] == "901 890 88 71"
     assert text[inn[0].start : inn[0].end] == "5758622243"
+
+
+def _span_at(text: str, value: str, pii_type: str) -> None:
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
+    start = text.index(value)
+    end = start + len(value)
+    matching = [s for s in spans if s.pii_type == pii_type and s.start == start and s.end == end]
+    assert matching, f"no {pii_type} span at {value!r} in {text!r}"
+
+
+def test_pin_after_card_number() -> None:
+    text = "ПИН-код от карты 4276 3801 2345 6789 — 4321"
+    _span_at(text, "4321", "PIN")
+
+
+def test_pin_context_after_value() -> None:
+    text = "4321 — это ПИН"
+    _span_at(text, "4321", "PIN")
+
+
+def test_phone_no_code_with_label() -> None:
+    text = "ТЕЛЕФОН 942 561 81 85, КОД ПОДРАЗДЕЛЕНИЯ 195-542"
+    _span_at(text, "942 561 81 85", "PHONE")

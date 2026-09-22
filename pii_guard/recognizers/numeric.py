@@ -78,7 +78,7 @@ def _phone_rules() -> Sequence[PatternRule]:
             PHONE_NO_CODE_RE,
             0.35,
             context=PHONE_CONTEXT,
-            context_bonus=0.3,
+            context_bonus=0.5,
         ),
         PatternRule(
             "PHONE",
@@ -163,8 +163,17 @@ def _pin_rules() -> Sequence[PatternRule]:
             0.1,
             context=PIN_CONTEXT,
             context_bonus=0.65,
-            context_window=25,
+            context_window=60,
             context_direction="before",
+        ),
+        PatternRule(
+            "PIN",
+            PIN_RE,
+            0.1,
+            context=PIN_CONTEXT,
+            context_bonus=0.65,
+            context_window=15,
+            context_direction="after",
         ),
     )
 

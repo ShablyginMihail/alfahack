@@ -23,6 +23,7 @@ MONTH_DATE_RE = re.compile(
 ORDINAL_DAY = (
     r"(?:первое|первого|второе|второго|третье|третьего|четвертое|четвертого|"
     r"пятое|пятого|шестое|шестого|седьмое|седьмого|восьмое|восьмого|девятое|девятого|"
+    r"десятое|десятого|"
     r"одиннадцатое|одиннадцатого|двенадцатое|двенадцатого|тринадцатое|тринадцатого|"
     r"четырнадцатое|четырнадцатого|пятнадцатое|пятнадцатого|шестнадцатое|шестнадцатого|"
     r"семнадцатое|семнадцатого|восемнадцатое|восемнадцатого|девятнадцатое|девятнадцатого|"
@@ -60,9 +61,10 @@ YEAR_WORDS = (
 )
 
 WORDS_DATE_RE = re.compile(
-    rf"(?<!\w)(({ORDINAL_DAY})\s+{MONTH_PATTERN}(?:\.|\w*)\s+{YEAR_WORDS})(?:\s+(?:года|год|году))?(?!\w)"
+    rf"(?<!\w)(({ORDINAL_DAY})\s+{MONTH_PATTERN}(?:\.|\w*)\s+{YEAR_WORDS})(?:\s+(?:года|год|году|г\.|г))?(?!\w)"
 )
-YEAR_WORDS_ONLY_RE = re.compile(rf"(?<!\w)({YEAR_WORDS})\s+(?:году|года|год)(?!\w)")
+YEAR_WORDS_ONLY_RE = re.compile(rf"(?<!\w)({YEAR_WORDS})\s+(?:году|года|год|г\.|г)(?!\w)")
+YEAR_GR_RE = re.compile(r"(?<!\d)(\d{4})\s*(?:г\.\s*р\.|года\s+рождения)(?!\w)")
 
 BIRTH_CONTEXT = compile_keywords(
     ["дата рождения", "д.р.", "д/р", "родил", "рожден", "день рождения"]
@@ -74,10 +76,10 @@ _YEAR_MIN = 1920
 _YEAR_MAX = 2012
 
 
-def _valid(day: int, month: int, year: int) -> bool:
+def _valid(day: int, month: int, year: int, year_len: int) -> bool:
     if not (1 <= month <= 12):
         return False
-    if len(str(year)) == 2:
+    if year_len == 2:
         year4 = 2000 + year
     elif 1900 <= year <= 2099:
         year4 = year
@@ -86,10 +88,11 @@ def _valid(day: int, month: int, year: int) -> bool:
     return 1 <= day <= calendar.monthrange(year4, month)[1]
 
 
-def _numeric_year(a: int, b: int, c: int) -> int | None:
-    if _valid(a, b, c):
+def _numeric_year(a_str: str, b_str: str, c_str: str) -> int | None:
+    a, b, c = int(a_str), int(b_str), int(c_str)
+    if _valid(a, b, c, len(c_str)):
         return c
-    if _valid(c, b, a):
+    if _valid(c, b, a, len(a_str)):
         return a
     return None
 
@@ -107,78 +110,64 @@ class DateRecognizer(Recognizer):
     def find(self, doc: Document) -> Iterable[Span]:
         spans: list[Span] = []
         for match in NUMERIC_DATE_RE.finditer(doc.norm):
-            year = _numeric_year(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+            year = _numeric_year(match.group(1), match.group(2), match.group(3))
             if year is None:
                 continue
-            span = self._classify(doc, match.start(), match.end(), year)
-            if span is not None:
-                spans.append(span)
+            self._collect(spans, self._classify(doc, match.start(), match.end(), year))
         for match in MONTH_DATE_RE.finditer(doc.norm):
             year = int(match.group(2))
-            span = self._classify(doc, match.start(1), match.end(1), year)
-            if span is not None:
-                spans.append(span)
+            self._collect(spans, self._classify(doc, match.start(1), match.end(1), year))
         for match in WORDS_DATE_RE.finditer(doc.norm):
-            span = self._classify_words(doc, match.start(1), match.end(1))
-            if span is not None:
-                spans.append(span)
+            self._collect(spans, self._classify_words(doc, match.start(1), match.end(1)))
         for match in YEAR_WORDS_ONLY_RE.finditer(doc.norm):
-            span = self._classify_year_only(doc, match.start(1), match.end(1))
-            if span is not None:
-                spans.append(span)
+            self._collect(spans, self._classify_year_only(doc, match.start(1), match.end(1)))
+        for match in YEAR_GR_RE.finditer(doc.norm):
+            # маркер «г.р.» входит в само совпадение, контекст искать не нужно
+            spans.append(Span(match.start(1), match.end(1), "BIRTH_DATE", 0.9, self.name))
         return spans
 
-    def _classify(self, doc: Document, start: int, end: int, year: int) -> Span | None:
-        birth = self._nearest(
-            [
-                find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before"),
-                find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after"),
-                find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both"),
-            ]
-        )
+    @staticmethod
+    def _collect(spans: list[Span], span: Span | None) -> None:
+        if span is not None:
+            spans.append(span)
+
+    def _context_type(self, doc: Document, start: int, end: int) -> str | None:
+        birth_before = find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before")
+        birth_gr = find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both")
         issue = find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before")
-        if birth is not None and (issue is None or birth < issue):
-            return Span(start, end, "BIRTH_DATE", 0.9, self.name)
-        if issue is not None:
-            return Span(start, end, "PASSPORT_ISSUE_DATE", 0.9, self.name)
+        if birth_before is not None or birth_gr is not None or issue is not None:
+            candidates: list[tuple[int, str]] = []
+            if birth_before is not None:
+                candidates.append((birth_before, "BIRTH_DATE"))
+            if birth_gr is not None:
+                candidates.append((birth_gr, "BIRTH_DATE"))
+            if issue is not None:
+                candidates.append((issue, "PASSPORT_ISSUE_DATE"))
+            return min(candidates, key=lambda item: item[0])[1]
+        birth_after = find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after")
+        if birth_after is not None:
+            return "BIRTH_DATE"
+        return None
+
+    def _classify(self, doc: Document, start: int, end: int, year: int) -> Span | None:
+        pii_type = self._context_type(doc, start, end)
+        if pii_type is not None:
+            return Span(start, end, pii_type, 0.9, self.name)
         normalized = _normalize_year(year)
         if _YEAR_MIN <= normalized <= _YEAR_MAX:
             return Span(start, end, "BIRTH_DATE", 0.4, self.name)
         return None
 
-    @staticmethod
-    def _nearest(values: list[int | None]) -> int | None:
-        non_none = [v for v in values if v is not None]
-        return min(non_none) if non_none else None
-
     def _classify_words(self, doc: Document, start: int, end: int) -> Span | None:
-        birth = self._nearest(
-            [
-                find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before"),
-                find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after"),
-                find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both"),
-            ]
-        )
-        issue = find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before")
-        if birth is not None and (issue is None or birth < issue):
-            return Span(start, end, "BIRTH_DATE", 0.9, self.name)
-        if issue is not None:
-            return Span(start, end, "PASSPORT_ISSUE_DATE", 0.9, self.name)
+        pii_type = self._context_type(doc, start, end)
+        if pii_type is not None:
+            return Span(start, end, pii_type, 0.9, self.name)
         return None
 
     def _classify_year_only(self, doc: Document, start: int, end: int) -> Span | None:
-        birth = self._nearest(
-            [
-                find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before"),
-                find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after"),
-                find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both"),
-            ]
-        )
-        issue = find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before")
-        if birth is not None and (issue is None or birth < issue):
-            return Span(start, end, "BIRTH_DATE", 0.9, self.name)
-        if issue is not None:
-            return Span(start, end, "PASSPORT_ISSUE_DATE", 0.9, self.name)
+        pii_type = self._context_type(doc, start, end)
+        if pii_type is not None:
+            return Span(start, end, pii_type, 0.9, self.name)
         return None
 
 

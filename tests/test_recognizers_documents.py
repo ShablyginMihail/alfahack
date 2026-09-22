@@ -179,3 +179,21 @@ def test_issuer_cut_on_pin() -> None:
     spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
     assert spans
     assert text[spans[0].start : spans[0].end] == "оуфмс россии по г. москва"
+
+
+def _span_at(text: str, value: str, pii_type: str) -> None:
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
+    start = text.index(value)
+    end = start + len(value)
+    matching = [s for s in spans if s.pii_type == pii_type and s.start == start and s.end == end]
+    assert matching, f"no {pii_type} span at {value!r} in {text!r}"
+
+
+def test_driver_old_format_in_phrase() -> None:
+    text = "email александр@yandex.ru, CVV 503, адрес г. челябинск, ВУ 28 вс 464342, ИНН 0379263560"
+    _span_at(text, "28 вс 464342", "DRIVER_LICENSE")
+
+
+def test_division_code_not_from_phone() -> None:
+    text = "ТЕЛЕФОН 942 561 81 85, КОД ПОДРАЗДЕЛЕНИЯ 195-542"
+    _span_at(text, "195-542", "DIVISION_CODE")
