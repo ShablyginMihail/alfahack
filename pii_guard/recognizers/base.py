@@ -22,6 +22,7 @@ class PatternRule:
     context: re.Pattern[str] | None = None
     context_bonus: float = 0.0
     context_window: int = 40
+    context_direction: str = "both"
     negative: re.Pattern[str] | None = None
     negative_penalty: float = 0.0
 
@@ -46,7 +47,9 @@ class RegexRecognizer(Recognizer):
                     score += rule.validator_bonus
                 if (
                     rule.context is not None
-                    and find_keyword(doc, start, end, rule.context, rule.context_window, "both")
+                    and find_keyword(
+                        doc, start, end, rule.context, rule.context_window, rule.context_direction
+                    )
                     is not None
                 ):
                     score += rule.context_bonus

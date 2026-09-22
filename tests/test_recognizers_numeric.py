@@ -109,3 +109,63 @@ def test_card_13_digits_ogrn_not_masked() -> None:
 def test_card_13_digits_valid_masked() -> None:
     number = _luhn("123456789012")
     assert _mask(number) != number
+
+
+def test_inn_with_label() -> None:
+    assert _mask("ИНН 7707083893") == "ИНН 77******93"
+
+
+def test_inn_12_digits_with_label() -> None:
+    assert _mask("инн: 500100732259") == "инн: 50********59"
+
+
+def test_inn_separated_masked() -> None:
+    assert _mask("ИНН 7707 083 893") != "ИНН 7707 083 893"
+
+
+def test_inn_without_label_not_masked() -> None:
+    assert _mask("номер 7707083893") == "номер 7707083893"
+
+
+def test_cvv_short() -> None:
+    assert _mask("CVV 123") == "CVV ***"
+
+
+def test_cvc2() -> None:
+    assert _mask("cvc2: 4567") == "cvc2: ****"
+
+
+def test_cvv_code_security() -> None:
+    assert _mask("код безопасности 321") == "код безопасности ***"
+
+
+def test_pin_short() -> None:
+    assert _mask("ПИН 1234") == "ПИН ****"
+
+
+def test_pin_code_hyphen() -> None:
+    assert _mask("pin-код: 9876") == "pin-код: ****"
+
+
+def test_pin_code_word() -> None:
+    assert _mask("пинкод 123456") == "пинкод ******"
+
+
+def test_card_and_cvv_each_masked_by_type() -> None:
+    text = "карта 4276 1234 5678 9012, cvv 123"
+    assert _mask(text) == "карта 4276 **** **** 9012, cvv ***"
+
+
+def test_card_groups_not_pin() -> None:
+    text = "пин-код от карты 4276 1234 5678 9012"
+    assert _mask(text) == "пин-код от карты 4276 **** **** 9012"
+
+
+def test_cvv_case_insensitive() -> None:
+    assert _mask("CVV 123") == "CVV ***"
+    assert _mask("Cvv 123") == "Cvv ***"
+
+
+def test_pin_case_insensitive() -> None:
+    assert _mask("ПИН 1234") == "ПИН ****"
+    assert _mask("Пин 1234") == "Пин ****"

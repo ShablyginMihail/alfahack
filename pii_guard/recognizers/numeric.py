@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from pii_guard.core.context import compile_keywords
 from pii_guard.core.registry import Recognizer
 from pii_guard.recognizers.base import PatternRule, RegexRecognizer
-from pii_guard.recognizers.validators import luhn_valid
+from pii_guard.recognizers.validators import inn_valid, luhn_valid
 
 EMAIL_RE = re.compile(r"(?<!\w)[\w.+-]+@[\w.-]+\.[\w-]+(?!\w)")
 
@@ -23,6 +23,11 @@ PHONE_INTL_RE = re.compile(
 
 CARD_GROUPED_RE = re.compile(r"(?<!\d)\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}(?!\d)")
 CARD_RUN_RE = re.compile(r"(?<!\d)\d{13,19}(?!\d)")
+
+INN_RUN_RE = re.compile(r"(?<!\d)(?:\d{10}|\d{12})(?!\d)")
+INN_SEPARATED_RE = re.compile(r"(?<!\d)\d{2,4}[\s-]\d{2,4}[\s-]\d{2,6}(?!\d)")
+CVV_RE = re.compile(r"(?<!\d)(?<!\d[\s-])\d{3,4}(?![\s-]\d)(?!\d)")
+PIN_RE = re.compile(r"(?<!\d)(?<!\d[\s-])\d{4,6}(?![\s-]\d)(?!\d)")
 
 PHONE_CONTEXT = compile_keywords(
     ["тел", "телефон", "моб", "звон", "whatsapp", "telegram", "контакт"]
@@ -45,6 +50,11 @@ CARD_NEGATIVE = compile_keywords(
         "трек",
     ]
 )
+INN_CONTEXT = compile_keywords(["инн"])
+CVV_CONTEXT = compile_keywords(
+    ["cvv", "cvc", "cvv2", "cvc2", "код безопасности", "секретный код", "три цифры"]
+)
+PIN_CONTEXT = compile_keywords(["пин", "pin", "пинкод", "pin code"])
 
 
 def _phone_rules() -> Sequence[PatternRule]:
@@ -107,9 +117,63 @@ def _card_rules() -> Sequence[PatternRule]:
     )
 
 
+def _inn_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "INN",
+            INN_RUN_RE,
+            0.2,
+            validator=inn_valid,
+            validator_bonus=0.25,
+            context=INN_CONTEXT,
+            context_bonus=0.45,
+            context_window=30,
+        ),
+        PatternRule(
+            "INN",
+            INN_SEPARATED_RE,
+            0.3,
+            context=INN_CONTEXT,
+            context_bonus=0.45,
+            context_window=30,
+        ),
+    )
+
+
+def _cvv_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "CVV",
+            CVV_RE,
+            0.1,
+            context=CVV_CONTEXT,
+            context_bonus=0.65,
+            context_window=25,
+            context_direction="before",
+        ),
+    )
+
+
+def _pin_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "PIN",
+            PIN_RE,
+            0.1,
+            context=PIN_CONTEXT,
+            context_bonus=0.65,
+            context_window=25,
+            context_direction="before",
+        ),
+    )
+
+
 def recognizers() -> list[Recognizer]:
     return [
         RegexRecognizer("email", [PatternRule("EMAIL", EMAIL_RE, 0.95)]),
         RegexRecognizer("phone", _phone_rules()),
         RegexRecognizer("card", _card_rules()),
+        RegexRecognizer("inn", _inn_rules()),
+        RegexRecognizer("cvv", _cvv_rules()),
+        RegexRecognizer("pin", _pin_rules()),
     ]
