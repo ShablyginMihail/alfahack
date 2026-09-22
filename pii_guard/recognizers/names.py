@@ -254,8 +254,9 @@ PATTERNS: tuple[tuple[tuple[str, ...], float], ...] = (
     (("NAME", "SURN"), 0.8),
 )
 
+_LATIN_WORD = r"[a-z]{2,}(?:['-][a-z]{2,})*"
 LATIN_NAME_RE = re.compile(
-    r"(?<!\w)([a-z]{2,}(?:['-][a-z]{2,})*)\s+([a-z]{2,}(?:['-][a-z]{2,})*)(?:\s+([a-z]{2,}(?:['-][a-z]{2,})*))?(?!\w)"
+    rf"(?<!\w)({_LATIN_WORD})\s+({_LATIN_WORD})(?:\s+({_LATIN_WORD}))?(?!\w)"
 )
 CARD_NUMBER_RE = re.compile(r"(?<!\d)(?:\d[\s-]?){12,18}\d(?!\d)")
 _LATIN_SURN_END = re.compile(r"(?:ov|ev|in|ova|eva|ina|sky|skaya)$")

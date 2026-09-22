@@ -14,18 +14,26 @@ PASSPORT_WORD = "паспорт"
 
 PASSPORT_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?(?:№\s*)?\d{6}(?!\d)")
 PASSPORT_RUN_RE = re.compile(r"(?<!\d)\d{10}(?!\d)")
-PASSPORT_SERIES_RE = re.compile(
-    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:паспорта\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?![\s-]*(?:№\s*)?\d{6}(?!\d))(?!\d)"
-)
+
+_SERIES_WORDS = r"(?:серия|серии|сер\.)"
+_SERIES_GROUP = r"(\d{2}[\s-]?\d{2})"
+_NO_SIX_DIGIT_NUMBER = r"(?![\s-]*(?:№\s*)?\d{6}(?!\d))"
+
+
+def _series_re(document_word: str) -> re.Pattern[str]:
+    return re.compile(
+        rf"(?<!\w){_SERIES_WORDS}\s*(?:{document_word}\s*)?[:№]?\s*{_SERIES_GROUP}{_NO_SIX_DIGIT_NUMBER}(?!\d)"
+    )
+
+
+PASSPORT_SERIES_RE = _series_re("паспорта")
 PASSPORT_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:паспорта\s*)?[:.]?\s*(\d{6})(?!\d)")
 
 DIVISION_CODE_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}(?![\s-]?\d)(?!\d)")
 
 DRIVER_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?\d{6}(?!\d)")
 DRIVER_OLD_RE = re.compile(r"(?<!\d)\d{2}[\s-]?[А-Яа-яЁё]{2}[\s-]?\d{6}(?!\d)")
-DRIVER_SERIES_RE = re.compile(
-    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:удостоверения\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?![\s-]*(?:№\s*)?\d{6}(?!\d))(?!\d)"
-)
+DRIVER_SERIES_RE = _series_re("удостоверения")
 DRIVER_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:удостоверения\s*)?[:.]?\s*(\d{6})(?!\d)")
 
 SNILS_GROUPED_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}[\s-]\d{3}[\s-]?\d{2}(?!\d)")
