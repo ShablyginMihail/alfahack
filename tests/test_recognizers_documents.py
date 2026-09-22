@@ -1,9 +1,9 @@
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker
-from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
+from tests.helpers import PARTIAL_PROFILE
 
 
 def _engine() -> Engine:
@@ -12,11 +12,11 @@ def _engine() -> Engine:
 
 
 def _mask(text: str) -> str:
-    return _engine().mask(text, CHECKER_PROFILE).text
+    return _engine().mask(text, PARTIAL_PROFILE).text
 
 
 def _types(text: str) -> set[str]:
-    return {span.pii_type for span in _engine().analyze(text, CHECKER_PROFILE)}
+    return {span.pii_type for span in _engine().analyze(text, PARTIAL_PROFILE)}
 
 
 def _snils(base9: str) -> str:
@@ -169,13 +169,13 @@ def test_issuer_date_words_not_organ() -> None:
 
 def test_issuer_cut_on_inn() -> None:
     text = "выдан оуфмс россии по г. самара, инн 5605628738"
-    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
     assert spans
     assert text[spans[0].start : spans[0].end] == "оуфмс россии по г. самара"
 
 
 def test_issuer_cut_on_pin() -> None:
     text = "выдан оуфмс россии по г. москва, пин 6232"
-    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
     assert spans
     assert text[spans[0].start : spans[0].end] == "оуфмс россии по г. москва"

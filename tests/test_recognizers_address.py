@@ -1,9 +1,9 @@
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker
-from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
+from tests.helpers import PARTIAL_PROFILE
 
 
 def _engine() -> Engine:
@@ -12,7 +12,7 @@ def _engine() -> Engine:
 
 
 def _mask(text: str) -> str:
-    return _engine().mask(text, CHECKER_PROFILE).text
+    return _engine().mask(text, PARTIAL_PROFILE).text
 
 
 def test_full_address() -> None:
@@ -105,5 +105,5 @@ def test_tverskaya_street() -> None:
 
 def test_region_republic_case() -> None:
     text = "проживает по адресу республике татарстан, г. тольятти"
-    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "ADDRESS"]
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "ADDRESS"]
     assert any(text[s.start : s.end] == "татарстан" for s in spans)

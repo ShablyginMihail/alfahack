@@ -98,6 +98,27 @@ def test_replace_masked_fragments_after_exhaustion_uses_last() -> None:
     assert replace_masked_fragments(text, replacements) == "4509 123456 7999 000000 7999 000000"
 
 
+def test_replace_masked_fragments_skips_pure_star_masks() -> None:
+    person, passport = "Иванов Иван Иванович", "4509 123456"
+    text = f"Клиент {'*' * len(person)}, паспорт {'*' * len(passport)}"
+    person_at = len("Клиент ")
+    passport_at = text.index("паспорт ") + len("паспорт ")
+    replacements = [
+        _replacement(
+            person_at, person_at + len(person), person_at, person, "*" * len(person), "PERSON"
+        ),
+        _replacement(
+            passport_at,
+            passport_at + len(passport),
+            passport_at,
+            passport,
+            "*" * len(passport),
+            "PASSPORT",
+        ),
+    ]
+    assert replace_masked_fragments(text, replacements) == text
+
+
 def test_unmask_exact_text_restores() -> None:
     record = MappingRecord(
         original_fp="fp",

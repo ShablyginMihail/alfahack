@@ -5,8 +5,9 @@ from collections.abc import Iterable
 from pii_guard.core.engine import Engine, resolve_overlaps
 from pii_guard.core.models import MaskResult, Replacement, Span
 from pii_guard.core.normalize import Document
-from pii_guard.core.policy import CHECKER_PROFILE, CombinationRule, Profile
+from pii_guard.core.policy import CombinationRule, Profile
 from pii_guard.core.registry import Recognizer, RecognizerRegistry
+from tests.helpers import PARTIAL_PROFILE
 
 
 class FakeRecognizer:
@@ -120,14 +121,14 @@ def test_analyze_threshold_filters_weak_spans() -> None:
         )
     )
     engine = Engine(registry, LabelMasker())
-    result = engine.analyze("12345 67890", CHECKER_PROFILE)
+    result = engine.analyze("12345 67890", PARTIAL_PROFILE)
     assert result == [_span(0, 5, "PHONE", 0.9)]
 
 
 def test_analyze_strict_lowers_threshold() -> None:
     registry = _registry(FakeRecognizer("r", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.4)]))
     engine = Engine(registry, LabelMasker())
-    assert engine.analyze("12345", CHECKER_PROFILE) == []
+    assert engine.analyze("12345", PARTIAL_PROFILE) == []
     strict = Profile(name="strict", strict=True)
     assert engine.analyze("12345", strict) == [_span(0, 5, "PHONE", 0.4)]
 
@@ -168,7 +169,7 @@ def test_analyze_rule_pin_requires_card() -> None:
 def test_analyze_drops_out_of_bounds_spans() -> None:
     registry = _registry(FakeRecognizer("r", frozenset({"PHONE"}), [_span(0, 50, "PHONE", 0.9)]))
     engine = Engine(registry, LabelMasker())
-    assert engine.analyze("12345", CHECKER_PROFILE) == []
+    assert engine.analyze("12345", PARTIAL_PROFILE) == []
 
 
 def test_analyze_failing_recognizer_does_not_break() -> None:
@@ -177,7 +178,7 @@ def test_analyze_failing_recognizer_does_not_break() -> None:
         FakeRecognizer("ok", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.9)]),
     )
     engine = Engine(registry, LabelMasker())
-    result = engine.analyze("12345", CHECKER_PROFILE)
+    result = engine.analyze("12345", PARTIAL_PROFILE)
     assert result == [_span(0, 5, "PHONE", 0.9)]
 
 
@@ -187,19 +188,19 @@ def test_analyze_generator_recognizer_failure_discards_partial_spans() -> None:
         FakeRecognizer("ok", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.9)]),
     )
     engine = Engine(registry, LabelMasker())
-    result = engine.analyze("12345", CHECKER_PROFILE)
+    result = engine.analyze("12345", PARTIAL_PROFILE)
     assert result == [_span(0, 5, "PHONE", 0.9)]
 
 
 def test_mask_returns_masker_result() -> None:
     registry = _registry(FakeRecognizer("r", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.9)]))
     engine = Engine(registry, LabelMasker())
-    result = engine.mask("12345", CHECKER_PROFILE)
+    result = engine.mask("12345", PARTIAL_PROFILE)
     assert result.text == "[PHONE]"
     assert result.replacements[0].pii_type == "PHONE"
 
 
 def test_mask_empty_text() -> None:
     engine = Engine(_registry(), LabelMasker())
-    result = engine.mask("", CHECKER_PROFILE)
+    result = engine.mask("", PARTIAL_PROFILE)
     assert result == MaskResult("", ())

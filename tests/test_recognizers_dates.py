@@ -1,9 +1,10 @@
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker
-from pii_guard.core.policy import CHECKER_PROFILE, Profile
+from pii_guard.core.policy import Profile
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
+from tests.helpers import PARTIAL_PROFILE
 
 
 def _engine() -> Engine:
@@ -12,11 +13,11 @@ def _engine() -> Engine:
 
 
 def _mask(text: str) -> str:
-    return _engine().mask(text, CHECKER_PROFILE).text
+    return _engine().mask(text, PARTIAL_PROFILE).text
 
 
 def _types(text: str) -> set[str]:
-    return {span.pii_type for span in _engine().analyze(text, CHECKER_PROFILE)}
+    return {span.pii_type for span in _engine().analyze(text, PARTIAL_PROFILE)}
 
 
 def test_birth_date_numeric() -> None:
@@ -49,7 +50,7 @@ def test_words_date_issue_without_goda() -> None:
 
 def test_two_dates_nearest_context() -> None:
     text = "дата рождения 03.11.97, дата выдачи 10 октября 1996"
-    spans = _engine().analyze(text, CHECKER_PROFILE)
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
     birth = [s for s in spans if s.pii_type == "BIRTH_DATE"]
     issue = [s for s in spans if s.pii_type == "PASSPORT_ISSUE_DATE"]
     assert birth and issue

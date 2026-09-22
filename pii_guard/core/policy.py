@@ -36,7 +36,7 @@ class Profile:
         return max(threshold, _MIN_THRESHOLD)
 
 
-CHECKER_PROFILE = Profile(name="checker")
+CHECKER_PROFILE = Profile(name="checker", mask_style="full")
 
 
 def apply_rules(spans: Sequence[Span], rules: Sequence[CombinationRule]) -> list[Span]:

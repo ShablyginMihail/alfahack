@@ -143,6 +143,24 @@ def test_label_style() -> None:
     assert result.text == "Клиент [ФИО], паспорт [ПАСПОРТ]"
 
 
+def test_full_style_masks_every_char() -> None:
+    cases = [
+        ("Иванов Иван Иванович", "PERSON"),
+        ("ivanov@mail.ru", "EMAIL"),
+        ("+7 (916) 123-45-67", "PHONE"),
+        ("4509 123456", "PASSPORT"),
+        ("г. Москва, ул. Ленина, д. 5", "ADDRESS"),
+    ]
+    for value, pii_type in cases:
+        text = f"данные {value} конец"
+        spans = [_span_at(text, value, pii_type)]
+        result = _masker().apply(text, spans, Profile(name="checker", mask_style="full"))
+        expected = f"данные {'*' * len(value)} конец"
+        assert result.text == expected
+        assert len(result.replacements[0].masked) == len(value)
+        assert not any(ch.isalnum() for ch in result.replacements[0].masked)
+
+
 def test_token_style_repeated_value_same_number() -> None:
     text = "Иванов Иван и ИВАНОВ ИВАН"
     spans = [

@@ -1,9 +1,9 @@
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker
-from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
+from tests.helpers import PARTIAL_PROFILE
 
 
 def _engine() -> Engine:
@@ -12,11 +12,11 @@ def _engine() -> Engine:
 
 
 def _mask(text: str) -> str:
-    return _engine().mask(text, CHECKER_PROFILE).text
+    return _engine().mask(text, PARTIAL_PROFILE).text
 
 
 def _has_person(text: str) -> bool:
-    return any(span.pii_type == "PERSON" for span in _engine().analyze(text, CHECKER_PROFILE))
+    return any(span.pii_type == "PERSON" for span in _engine().analyze(text, PARTIAL_PROFILE))
 
 
 def test_contract_example() -> None:
@@ -100,7 +100,7 @@ def test_saltykov_shchedrin_not_masked() -> None:
 
 
 def _has_cardholder(text: str) -> bool:
-    return any(span.pii_type == "CARDHOLDER" for span in _engine().analyze(text, CHECKER_PROFILE))
+    return any(span.pii_type == "CARDHOLDER" for span in _engine().analyze(text, PARTIAL_PROFILE))
 
 
 def test_cardholder_latin() -> None:
@@ -139,7 +139,7 @@ def test_single_letter_not_initial_before_city() -> None:
 
 def test_cardholder_vs_personal_context() -> None:
     text = "Держатель Ivan Ivanov, Клиент Петров Владимир Владимирович"
-    spans = _engine().analyze(text, CHECKER_PROFILE)
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
     cardholder = [s for s in spans if s.pii_type == "CARDHOLDER"]
     person = [s for s in spans if s.pii_type == "PERSON"]
     assert cardholder and person

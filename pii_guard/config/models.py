@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from pii_guard.recognizers.validators import inn_valid, luhn_valid, snils_valid
 
-VALID_MASK_STYLES = frozenset({"partial", "label", "token"})
+VALID_MASK_STYLES = frozenset({"partial", "label", "token", "full"})
 VALIDATORS: dict[str, Callable[[str], bool] | None] = {
     "luhn": luhn_valid,
     "inn": inn_valid,

@@ -7,7 +7,7 @@ systems:
   checker:
     enabled: true
     pii_types: all
-    mask_style: partial
+    mask_style: full
   crm-assistant:
     enabled: true
     pii_types: all

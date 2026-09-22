@@ -1,9 +1,9 @@
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker
-from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import default_type_registry
 from pii_guard.recognizers.numeric import recognizers
+from tests.helpers import PARTIAL_PROFILE
 
 
 def _engine() -> Engine:
@@ -14,7 +14,7 @@ def _engine() -> Engine:
 
 
 def _mask(text: str) -> str:
-    return _engine().mask(text, CHECKER_PROFILE).text
+    return _engine().mask(text, PARTIAL_PROFILE).text
 
 
 def _luhn(base: str) -> str:
@@ -173,7 +173,7 @@ def test_pin_case_insensitive() -> None:
 
 def test_inn_separated_not_phone() -> None:
     text = "ИНН 5758622243, ТЕЛЕФОН 901 890 88 71"
-    spans = _engine().analyze(text, CHECKER_PROFILE)
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
     phone = [s for s in spans if s.pii_type == "PHONE"]
     inn = [s for s in spans if s.pii_type == "INN"]
     assert phone and inn

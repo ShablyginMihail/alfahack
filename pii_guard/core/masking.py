@@ -140,6 +140,8 @@ class DefaultMasker:
             masker = self._partial_mask
         elif style == "label":
             masker = self._label_mask
+        elif style == "full":
+            masker = self._full_mask
         elif style == "token":
             numbering = _TokenNumbering()
 
@@ -189,6 +191,9 @@ class DefaultMasker:
 
     def _label_mask(self, span: Span, original: str) -> str:
         return f"[{self._registry.label(span.pii_type)}]"
+
+    def _full_mask(self, span: Span, original: str) -> str:
+        return self._mask_char * len(original)
 
     def _token_mask(self, span: Span, original: str, numbering: _TokenNumbering) -> str:
         number = numbering.number(span.pii_type, original)

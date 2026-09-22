@@ -7,8 +7,8 @@ import pytest
 import yaml
 
 from pii_guard.config.loader import ConfigStore, build_engine, load_config
-from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.settings import Settings
+from tests.helpers import PARTIAL_PROFILE
 
 REPO_CONFIG = Path(__file__).resolve().parent.parent / "config"
 
@@ -42,7 +42,7 @@ def test_load_repo_config() -> None:
 def test_profiles_match_yaml() -> None:
     config = load_config(REPO_CONFIG)
     profiles = config.profiles()
-    assert profiles["checker"].mask_style == "partial"
+    assert profiles["checker"].mask_style == "full"
     assert profiles["checker"].pii_types is None
     assert profiles["crm-assistant"].mask_style == "token"
     assert profiles["crm-assistant"].strict is True
@@ -157,7 +157,7 @@ def test_custom_type_oms_policy(tmp_path: Path) -> None:
     )
     config = load_config(tmp_path)
     engine = build_engine(config, Settings().recognizer_modules)
-    result = engine.mask("полис ОМС 1234567890123456", CHECKER_PROFILE)
+    result = engine.mask("полис ОМС 1234567890123456", PARTIAL_PROFILE)
     assert "1234567890123456" not in result.text
 
 

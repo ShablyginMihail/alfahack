@@ -1,9 +1,9 @@
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker
-from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import default_type_registry
 from pii_guard.settings import Settings
+from tests.helpers import PARTIAL_PROFILE
 
 
 def _engine() -> Engine:
@@ -12,11 +12,11 @@ def _engine() -> Engine:
 
 
 def _mask(text: str) -> str:
-    return _engine().mask(text, CHECKER_PROFILE).text
+    return _engine().mask(text, PARTIAL_PROFILE).text
 
 
 def _types(text: str) -> set[str]:
-    return {span.pii_type for span in _engine().analyze(text, CHECKER_PROFILE)}
+    return {span.pii_type for span in _engine().analyze(text, PARTIAL_PROFILE)}
 
 
 def test_birth_place_city() -> None:
@@ -75,7 +75,7 @@ def test_case_insensitive() -> None:
 
 def test_birth_place_span_starts_at_value() -> None:
     text = "Место рождения — Саратовская обл., с. Ивановка"
-    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "BIRTH_PLACE"]
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "BIRTH_PLACE"]
     assert spans
     assert text[spans[0].start : spans[0].end].startswith("Саратовская")
 
@@ -88,6 +88,6 @@ def test_citizenship_genitive() -> None:
 
 def test_birth_place_cut_on_pin() -> None:
     text = "МЕСТО РОЖДЕНИЯ Г. САРАТОВ, ПИН 7520"
-    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "BIRTH_PLACE"]
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "BIRTH_PLACE"]
     assert spans
     assert text[spans[0].start : spans[0].end] == "САРАТОВ"

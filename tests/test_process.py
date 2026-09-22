@@ -13,11 +13,29 @@ from pii_guard.services.process import ProcessService
 from pii_guard.settings import Settings
 from pii_guard.store.crypto import RecordCipher, decode_key
 from pii_guard.store.redis_store import RedisStore
-from tests.helpers import make_settings
+from tests.helpers import make_settings, write_config
 
 
 def _settings(tmp_path) -> Settings:
     return make_settings(tmp_path)
+
+
+def _full_settings(tmp_path) -> Settings:
+    settings = make_settings(tmp_path, recognizer_modules=Settings().recognizer_modules)
+    write_config(
+        settings.config_dir,
+        systems={
+            "defaults": {"mask_style": "partial", "unmask": True, "strict": False},
+            "systems": {
+                "checker": {
+                    "enabled": True,
+                    "pii_types": "all",
+                    "mask_style": "full",
+                }
+            },
+        },
+    )
+    return settings
 
 
 async def _client(app) -> AsyncClient:
@@ -137,3 +155,20 @@ async def test_process_service_two_workers_shared_redis(tmp_path) -> None:
     out2 = await worker2.handle("shared-id", out1.result)
     assert out2.direction == "unmask"
     assert out2.result == text
+
+
+@pytest.mark.asyncio
+async def test_full_mask_roundtrip(tmp_path) -> None:
+    app = create_app(_full_settings(tmp_path))
+    async with _start_lifespan(app), await _client(app) as client:
+        text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+        resp = await client.post("/process", json={"payload": text, "payload_id": "full-1"})
+        assert resp.status_code == 200
+        masked = resp.json()["result"]
+        assert not any(ch.isdigit() for ch in masked)
+        assert "Иванов Иван Иванович" not in masked
+        assert "4509 123456" not in masked
+
+        resp2 = await client.post("/process", json={"payload": masked, "payload_id": "full-1"})
+        assert resp2.status_code == 200
+        assert resp2.json()["result"] == text

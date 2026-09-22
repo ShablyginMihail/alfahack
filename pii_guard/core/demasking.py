@@ -30,6 +30,8 @@ def replace_masked_fragments(text: str, replacements: Sequence[Replacement]) -> 
         masked = replacement.masked
         if not masked:
             continue
+        if not any(ch.isalnum() for ch in masked):
+            continue
         by_masked.setdefault(masked, []).append(replacement.original)
 
     if not by_masked:

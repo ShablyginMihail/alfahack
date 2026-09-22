@@ -4,7 +4,10 @@ from pathlib import Path
 
 import yaml
 
+from pii_guard.core.policy import Profile
 from pii_guard.settings import Settings
+
+PARTIAL_PROFILE = Profile(name="checker", mask_style="partial")
 
 
 def write_config(
