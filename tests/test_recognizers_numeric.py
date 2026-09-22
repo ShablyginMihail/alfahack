@@ -17,6 +17,10 @@ def _mask(text: str) -> str:
     return _engine().mask(text, PARTIAL_PROFILE).text
 
 
+def _types(text: str) -> set[str]:
+    return {span.pii_type for span in _engine().analyze(text, PARTIAL_PROFILE)}
+
+
 def _luhn(base: str) -> str:
     total = 0
     for i, ch in enumerate(reversed(base)):
@@ -202,3 +206,12 @@ def test_pin_context_after_value() -> None:
 def test_phone_no_code_with_label() -> None:
     text = "ТЕЛЕФОН 942 561 81 85, КОД ПОДРАЗДЕЛЕНИЯ 195-542"
     _span_at(text, "942 561 81 85", "PHONE")
+
+
+def test_cvv_on_back() -> None:
+    assert "CVV" in _types("код на обороте карты 456")
+
+
+def test_card_16_digits_run_no_context() -> None:
+    assert "CARD_NUMBER" in _types("Переведите на 4276380012345678")
+    assert "CARD_NUMBER" not in _types("Номер договора 4276380012345678")

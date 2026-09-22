@@ -90,8 +90,8 @@ def test_year_after_passport_not_masked() -> None:
     assert _mask(text) == "Паспорт 45** ****56 выдан **.**.****"
 
 
-def test_year_with_passport_not_masked() -> None:
-    assert _mask("Паспорт получен в 2015 году") == "Паспорт получен в 2015 году"
+def test_passport_received_year_masked_as_issue_date() -> None:
+    assert _mask("Паспорт получен в 2015 году") == "Паспорт получен в **** году"
 
 
 def test_working_hours_not_masked() -> None:
@@ -197,3 +197,16 @@ def test_driver_old_format_in_phrase() -> None:
 def test_division_code_not_from_phone() -> None:
     text = "ТЕЛЕФОН 942 561 81 85, КОД ПОДРАЗДЕЛЕНИЯ 195-542"
     _span_at(text, "195-542", "DIVISION_CODE")
+
+
+def test_passport_abbreviation() -> None:
+    assert "PASSPORT" in _types("пасп. 4510 654321")
+
+
+def test_passport_combined_with_vydan() -> None:
+    assert "PASSPORT" in _types("4510 654321 выдан ОВД района Хамовники")
+
+
+def test_division_code_kp() -> None:
+    assert "DIVISION_CODE" in _types("к.п. 370-012")
+    assert "DIVISION_CODE" in _types("кп 370-012")

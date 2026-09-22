@@ -23,6 +23,7 @@ PHONE_INTL_RE = re.compile(
 
 CARD_GROUPED_RE = re.compile(r"(?<!\d)\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}(?!\d)")
 CARD_RUN_RE = re.compile(r"(?<!\d)\d{13,19}(?!\d)")
+CARD_RUN_16_RE = re.compile(r"(?<!\d)[2-6]\d{15}(?!\d)")
 
 INN_RUN_RE = re.compile(r"(?<!\d)(?:\d{10}|\d{12})(?!\d)")
 INN_SEPARATED_RE = re.compile(r"(?<!\d)\d{2,4}[\s-]\d{2,4}[\s-]\d{2,6}(?!\d)")
@@ -52,7 +53,23 @@ CARD_NEGATIVE = compile_keywords(
 )
 INN_CONTEXT = compile_keywords(["инн"])
 CVV_CONTEXT = compile_keywords(
-    ["cvv", "cvc", "cvv2", "cvc2", "код безопасности", "секретный код", "три цифры"]
+    [
+        "cvv",
+        "cvc",
+        "cvv2",
+        "cvc2",
+        "код безопасности",
+        "секретный код",
+        "три цифры",
+        "на обороте",
+        "оборотной стороне",
+        "обратной стороне",
+        "трехзначный код",
+        "cvv-код",
+        "cvc-код",
+        "код cvv",
+        "код cvc",
+    ]
 )
 PIN_CONTEXT = compile_keywords(["пин", "pin", "пинкод", "pin code"])
 
@@ -111,6 +128,13 @@ def _card_rules() -> Sequence[PatternRule]:
             validator_bonus=0.35,
             context=CARD_CONTEXT,
             context_bonus=0.3,
+            negative=CARD_NEGATIVE,
+            negative_penalty=0.4,
+        ),
+        PatternRule(
+            "CARD_NUMBER",
+            CARD_RUN_16_RE,
+            0.5,
             negative=CARD_NEGATIVE,
             negative_penalty=0.4,
         ),

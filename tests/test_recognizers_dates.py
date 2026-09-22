@@ -195,3 +195,35 @@ def test_year_of_birth_words() -> None:
 def test_public_figure_birth_date_not_masked() -> None:
     assert "BIRTH_DATE" not in _types("поэт Александр Пушкин родился в Москве")
     assert "BIRTH_DATE" not in _types("Юрий Гагарин родился 9 марта 1934 года в Клушине")
+
+
+def test_birth_date_dr_abbreviation() -> None:
+    assert "BIRTH_DATE" in _types("ДР 12.03.1985")
+    assert "BIRTH_DATE" in _types("ДР 12-03-1985")
+
+
+def test_year_after_birth_marker() -> None:
+    _span_at("год рождения 1985", "1985", "BIRTH_DATE")
+    _span_at("год рождения: 1985", "1985", "BIRTH_DATE")
+    _span_at("г.р. 1985", "1985", "BIRTH_DATE")
+
+
+def test_month_date_ordinal_day() -> None:
+    _span_at("родилась двенадцатого марта 1985 года", "двенадцатого марта 1985", "BIRTH_DATE")
+
+
+def test_passport_issue_date_received() -> None:
+    assert "PASSPORT_ISSUE_DATE" in _types("паспорт получен 14 июля 2012 года")
+    assert "PASSPORT_ISSUE_DATE" not in _types("Платёж получен 12.03.2024")
+
+
+def test_words_date_without_context_candidate() -> None:
+    strict = Profile(name="s", strict=True)
+    spans = _engine().analyze("двенадцатого марта тысяча девятьсот восемьдесят пятого", strict)
+    assert any(s.pii_type == "BIRTH_DATE" for s in spans)
+
+
+def test_year_words_without_context_candidate() -> None:
+    strict = Profile(name="s", strict=True)
+    spans = _engine().analyze("тысяча девятьсот восемьдесят пятого года", strict)
+    assert any(s.pii_type == "BIRTH_DATE" for s in spans)

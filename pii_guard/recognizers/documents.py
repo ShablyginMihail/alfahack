@@ -31,8 +31,13 @@ SNILS_RUN_RE = re.compile(r"(?<!\d)\d{11}(?!\d)")
 
 FOREIGN_PASSPORT_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{7}(?!\d)")
 
-PASSPORT_CONTEXT = compile_keywords(["паспорт", "серия", "серии", "номер паспорта"])
-DIVISION_CONTEXT = compile_keywords(["код подразделения", "подразделени", "код подр", "к/п"])
+PASSPORT_CONTEXT = compile_keywords(["паспорт", "серия", "серии", "номер паспорта", "пасп"])
+PASSPORT_COMBINED_CONTEXT = compile_keywords(
+    ["паспорт", "серия", "серии", "номер паспорта", "пасп", "выдан"]
+)
+DIVISION_CONTEXT = compile_keywords(
+    ["код подразделения", "подразделени", "код подр", "к/п", "к.п.", "кп"]
+)
 DIVISION_PASSPORT_CONTEXT = compile_keywords(["паспорт", "выдан"])
 DRIVER_CONTEXT = compile_keywords(["водительск", "ву", "в/у", "права", "удостоверени"])
 SNILS_CONTEXT = compile_keywords(["снилс", "страхов"])
@@ -61,7 +66,7 @@ def _passport_rules() -> Sequence[PatternRule]:
             "PASSPORT",
             PASSPORT_COMBINED_RE,
             0.45,
-            context=PASSPORT_CONTEXT,
+            context=PASSPORT_COMBINED_CONTEXT,
             context_bonus=0.45,
         ),
         PatternRule(
