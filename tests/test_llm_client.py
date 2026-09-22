@@ -5,6 +5,7 @@ import secrets
 import httpx
 import pytest
 import respx
+from pydantic import SecretStr
 
 from pii_guard.llm.client import (
     LLMError,
@@ -127,5 +128,7 @@ def test_create_llm_client_mock() -> None:
 
 
 def test_create_llm_client_openai() -> None:
-    client = create_llm_client(Settings(llm_base_url=LLM_BASE_URL, llm_api_key="k", llm_model="m"))
+    client = create_llm_client(
+        Settings(llm_base_url=LLM_BASE_URL, llm_api_key=SecretStr("k"), llm_model="m")
+    )
     assert isinstance(client, OpenAICompatibleLLM)

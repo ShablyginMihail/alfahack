@@ -142,8 +142,10 @@ class TestRedisStore:
     ) -> None:
         await redis_store.put_if_absent("k", record, ttl_seconds=60)
         raw = await redis_store._client.get("pii:map:k")
-        assert b"4509 123456" not in raw
-        assert b"45** ****56" not in raw
+        assert raw is not None
+        raw_bytes = bytes(raw)
+        assert b"4509 123456" not in raw_bytes
+        assert b"45** ****56" not in raw_bytes
 
 
 class _FakeStore:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from pii_guard.core.engine import Engine, resolve_overlaps
 from pii_guard.core.masking import DefaultMasker
@@ -41,7 +41,7 @@ class GeneratorFailingRecognizer:
 
 
 class LabelMasker:
-    def apply(self, text: str, spans: list[Span], profile: Profile) -> MaskResult:
+    def apply(self, text: str, spans: Sequence[Span], profile: Profile) -> MaskResult:
         replacements: list[Replacement] = []
         masked = text
         for span in sorted(spans, key=lambda s: s.start, reverse=True):

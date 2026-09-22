@@ -36,6 +36,11 @@ def register_error_handlers(app: FastAPI) -> None:
     async def _validation_error_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        logger.info(
+            "invalid_request",
+            path=request.url.path,
+            error_types=[err.get("type") for err in exc.errors()],
+        )
         if _is_json_invalid(exc):
             return JSONResponse(status_code=400, content={"error": "invalid_json"})
         return JSONResponse(
@@ -45,6 +50,11 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(HTTPException)
     async def _http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        logger.debug(
+            "http_error",
+            path=request.url.path,
+            status=exc.status_code,
+        )
         if isinstance(exc.detail, Mapping):
             content = dict(exc.detail)
         else:
@@ -58,6 +68,7 @@ def register_error_handlers(app: FastAPI) -> None:
         location = f"{frame.filename}:{frame.lineno}" if frame else "unknown"
         logger.error(
             "unhandled_exception",
+            path=request.url.path,
             exc_type=type(exc).__name__,
             location=location,
         )

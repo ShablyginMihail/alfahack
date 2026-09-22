@@ -80,7 +80,6 @@ LLM (OpenAI-совместимый API, шлюз alfagen; заглушка пр�
 | `POST /process` | контракт проверяющей системы; без ключа (так требует контракт), профиль `checker` |
 | `POST /api/v1/mask`, `POST /api/v1/unmask` | маскирование и демаскирование для систем-потребителей (`X-API-Key`) |
 | `POST /v1/chat/completions` | OpenAI-совместимый прокси к LLM |
-| `GET /ui` | демо-страница |
 | `GET /metrics`, `/health`, `/ready` | метрики Prometheus, живость, готовность |
 | `/admin/*` | перезагрузка конфига, вкл/выкл систем (админ-токен) |
 
@@ -90,7 +89,7 @@ LLM (OpenAI-совместимый API, шлюз alfagen; заглушка пр�
 pii_guard/
   main.py              create_app(), lifespan, middleware
   settings.py          Settings (pydantic-settings, префикс PII_)
-  api/                 health, process, mask, proxy, admin, ui, errors
+  api/                 health, process, mask, proxy, admin, errors
   core/
     models.py          Span, Replacement, MaskResult, MappingRecord
     types.py           реестр типов ПД: код, русская метка
@@ -108,7 +107,6 @@ pii_guard/
   llm/                 клиент OpenAI-совместимого API, заглушка
 config/                systems.yaml, pii_types.yaml
 data/dicts/            небольшие справочники (известные люди, страны, типы улиц)
-static/                демо-страница
 tests/                 pytest
 eval/                  генератор датасета, golden-набор, evaluate.py
 loadtest/              k6-сценарий
@@ -282,9 +280,9 @@ systems:
 - [ ] T17 — тест утечек ПД в логи, метрики и ответы об ошибках
 - [ ] T17a — качество кода под Sonar: sonar-project.properties, локальный SonarQube, чистка замечаний, mypy для eval/
 
-### Этап 5 — LLM-прокси и демо
+### Этап 5 — LLM-прокси
 - [x] T18 — /v1/chat/completions: маска → повторная проверка → LLM (mock или AlfaGen) → демаскирование; русский текст и chat messages
-- [x] T19 — демо-страница на `/` (написана Claude как разовое исключение, пока alfagen был недоступен)
+- [x] T19 — решение проверяется только через API, демо-страница убрана
 - [ ] T20 — доп. возможности: доп. типы документов, 2000 RPS
 
 ### Этап 6 — нагрузка и сдача
