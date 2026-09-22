@@ -27,6 +27,15 @@ class FailingRecognizer:
         raise RuntimeError("boom")
 
 
+class GeneratorFailingRecognizer:
+    name = "gen_failing"
+    pii_types = frozenset({"PIN"})
+
+    def find(self, doc: Document) -> Iterable[Span]:
+        yield _span(0, 4, "PIN", 0.9, name="gen_failing")
+        raise RuntimeError("boom")
+
+
 class LabelMasker:
     def apply(self, text: str, spans: list[Span], profile: Profile) -> MaskResult:
         replacements: list[Replacement] = []
@@ -165,6 +174,16 @@ def test_analyze_drops_out_of_bounds_spans() -> None:
 def test_analyze_failing_recognizer_does_not_break() -> None:
     registry = _registry(
         FailingRecognizer(),
+        FakeRecognizer("ok", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.9)]),
+    )
+    engine = Engine(registry, LabelMasker())
+    result = engine.analyze("12345", CHECKER_PROFILE)
+    assert result == [_span(0, 5, "PHONE", 0.9)]
+
+
+def test_analyze_generator_recognizer_failure_discards_partial_spans() -> None:
+    registry = _registry(
+        GeneratorFailingRecognizer(),
         FakeRecognizer("ok", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.9)]),
     )
     engine = Engine(registry, LabelMasker())

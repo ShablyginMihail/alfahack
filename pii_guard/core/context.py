@@ -23,18 +23,16 @@ def find_keyword(
     norm = doc.norm
     if direction == "before":
         lo = max(0, start - window)
-        region = norm[lo:start]
-        match = pattern.search(region)
-        if match is None:
+        matches = list(pattern.finditer(norm, lo, start))
+        if not matches:
             return None
-        return start - (lo + match.start())
+        return start - matches[-1].start()
     if direction == "after":
         hi = min(len(norm), end + window)
-        region = norm[end:hi]
-        match = pattern.search(region)
+        match = pattern.search(norm, end, hi)
         if match is None:
             return None
-        return match.start()
+        return match.start() - end
     if direction == "both":
         before = find_keyword(doc, start, end, pattern, window, "before")
         after = find_keyword(doc, start, end, pattern, window, "after")

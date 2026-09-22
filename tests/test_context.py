@@ -80,6 +80,20 @@ def test_distance_both_takes_nearest() -> None:
     assert find_keyword(doc, start, start + 4, pattern, direction="both") == 1
 
 
+def test_distance_before_takes_nearest() -> None:
+    pattern = compile_keywords(["паспорт"])
+    doc = _doc("паспорт паспорт 1234")
+    start = doc.norm.index("1234")
+    assert find_keyword(doc, start, start + 4, pattern, direction="before") == 8
+
+
+def test_window_starting_inside_word_does_not_match() -> None:
+    pattern = compile_keywords(["паспорт"])
+    doc = _doc("загранпаспорт 1234")
+    start = doc.norm.index("1234")
+    assert find_keyword(doc, start, start + 4, pattern, window=6) is None
+
+
 def test_has_keyword_wrapper() -> None:
     pattern = compile_keywords(["паспорт"])
     doc = _doc("паспорт 1234")

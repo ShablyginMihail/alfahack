@@ -71,8 +71,9 @@ class Engine:
         doc = Document.from_text(text)
         candidates: list[Span] = []
         for recognizer in self._registry.for_types(profile.pii_types):
+            found: list[Span] = []
             try:
-                found = recognizer.find(doc)
+                found.extend(recognizer.find(doc))
             except Exception as exc:
                 logger.warning(
                     "recognizer_failed",
