@@ -48,9 +48,8 @@ def load_golden(paths: list[str]) -> list[tuple[str, list[GoldSpan], str]]:
 
 
 def expected_mask(text: str, gold: list[GoldSpan], masker: DefaultMasker, profile: Profile) -> str:
-    spans = [
-        Span(s.start, s.end, s.pii_type, 1.0, "gold") for s in sorted(gold, key=lambda s: s.start)
-    ]
+    ordered = sorted(gold, key=lambda s: s.start)
+    spans = [Span(s.start, s.end, s.pii_type, 1.0, "gold") for s in ordered]
     return masker.apply(text, spans, profile).text
 
 
@@ -73,17 +72,24 @@ def build_output(text: str, replacements) -> tuple[str, dict[int, int]]:
     return "".join(out_chars), orig_to_out
 
 
-def leaked_count(text: str, replacements, gold: GoldSpan) -> tuple[int, int]:
+def leaked_count(text: str, replacements, gold: GoldSpan) -> tuple[int, int, int]:
     out, orig_to_out = build_output(text, replacements)
-    leaked = 0
+    covered = set()
+    for r in replacements:
+        for p in range(r.start, r.end):
+            covered.add(p)
     total = 0
+    leak = 0
+    visible = 0
     for p in range(gold.start, gold.end):
         if not text[p].isalnum():
             continue
         total += 1
-        if p in orig_to_out and out[orig_to_out[p]].isalnum():
-            leaked += 1
-    return leaked, total
+        if p not in covered:
+            leak += 1
+        elif p in orig_to_out and out[orig_to_out[p]].isalnum():
+            visible += 1
+    return leak, visible, total
 
 
 def _overlap(a: Span, b: GoldSpan) -> bool:
@@ -100,22 +106,71 @@ def _f1(precision: float, recall: float) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
+def _percentile(values: list[float], p: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, int(len(ordered) * p / 100))
+    return ordered[idx]
+
+
+def _new_type_stats() -> dict:
+    return {
+        "gold": 0,
+        "pred": 0,
+        "exact_tp": 0,
+        "inter_tp": 0,
+        "leak": 0,
+        "visible": 0,
+        "leak_total": 0,
+        "misses": [],
+        "fp": [],
+    }
+
+
+def _update_type_stats(
+    stats: dict, text: str, golds: list[GoldSpan], preds: list[Span], replacements
+) -> None:
+    stats["gold"] += len(golds)
+    stats["pred"] += len(preds)
+    for p in preds:
+        if any(_exact(p, g) for g in golds):
+            stats["exact_tp"] += 1
+        if any(_overlap(p, g) for g in golds):
+            stats["inter_tp"] += 1
+        else:
+            stats["fp"].append((text, p.start, p.end))
+    for g in golds:
+        if not any(_overlap(p, g) for p in preds):
+            stats["misses"].append((text, g.start, g.end))
+        leak, visible, total = leaked_count(text, replacements, g)
+        stats["leak"] += leak
+        stats["visible"] += visible
+        stats["leak_total"] += total
+
+
+def _update_phrase(per_type: dict, text: str, gold: list[GoldSpan], result) -> None:
+    pred_by_type: dict[str, list[Span]] = defaultdict(list)
+    for span in result.replacements:
+        pred_by_type[span.pii_type].append(Span(span.start, span.end, span.pii_type, 1.0, "pred"))
+    gold_by_type: dict[str, list[GoldSpan]] = defaultdict(list)
+    for g in gold:
+        gold_by_type[g.pii_type].append(g)
+    for pii_type in set(gold_by_type) | set(pred_by_type):
+        stats = per_type[pii_type]
+        _update_type_stats(
+            stats,
+            text,
+            gold_by_type.get(pii_type, []),
+            pred_by_type.get(pii_type, []),
+            result.replacements,
+        )
+
+
 def evaluate(phrases, profile: Profile) -> dict:
     engine = _engine()
     masker = DefaultMasker(default_type_registry())
-
-    per_type: dict[str, dict] = defaultdict(
-        lambda: {
-            "gold": 0,
-            "pred": 0,
-            "exact_tp": 0,
-            "inter_tp": 0,
-            "leak": 0,
-            "leak_total": 0,
-            "misses": [],
-            "fp": [],
-        }
-    )
+    per_type: dict[str, dict] = defaultdict(_new_type_stats)
     similarities: list[float] = []
     roundtrip_ok = 0
     trap_fp = 0
@@ -138,35 +193,7 @@ def evaluate(phrases, profile: Profile) -> dict:
             if result.replacements:
                 trap_fp += 1
 
-        pred_by_type: dict[str, list[Span]] = defaultdict(list)
-        for span in result.replacements:
-            pred_by_type[span.pii_type].append(
-                Span(span.start, span.end, span.pii_type, 1.0, "pred")
-            )
-
-        gold_by_type: dict[str, list[GoldSpan]] = defaultdict(list)
-        for g in gold:
-            gold_by_type[g.pii_type].append(g)
-
-        for pii_type in set(gold_by_type) | set(pred_by_type):
-            stats = per_type[pii_type]
-            golds = gold_by_type.get(pii_type, [])
-            preds = pred_by_type.get(pii_type, [])
-            stats["gold"] += len(golds)
-            stats["pred"] += len(preds)
-            for p in preds:
-                if any(_exact(p, g) for g in golds):
-                    stats["exact_tp"] += 1
-                if any(_overlap(p, g) for g in golds):
-                    stats["inter_tp"] += 1
-                else:
-                    stats["fp"].append((text, p.start, p.end))
-            for g in golds:
-                if not any(_overlap(p, g) for p in preds):
-                    stats["misses"].append((text, g.start, g.end))
-                leaked, total = leaked_count(text, result.replacements, g)
-                stats["leak"] += leaked
-                stats["leak_total"] += total
+        _update_phrase(per_type, text, gold, result)
 
     return {
         "phrases": len(phrases),
@@ -179,14 +206,6 @@ def evaluate(phrases, profile: Profile) -> dict:
     }
 
 
-def _percentile(values: list[float], p: float) -> float:
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    idx = min(len(ordered) - 1, int(len(ordered) * p / 100))
-    return ordered[idx]
-
-
 def _type_rows(per_type: dict) -> list[dict]:
     rows = []
     for pii_type, stats in sorted(per_type.items()):
@@ -195,6 +214,7 @@ def _type_rows(per_type: dict) -> list[dict]:
         inter_p = stats["inter_tp"] / stats["pred"] if stats["pred"] else 0.0
         inter_r = stats["inter_tp"] / stats["gold"] if stats["gold"] else 0.0
         leak = stats["leak"] / stats["leak_total"] if stats["leak_total"] else 0.0
+        visible = stats["visible"] / stats["leak_total"] if stats["leak_total"] else 0.0
         rows.append(
             {
                 "type": pii_type,
@@ -205,6 +225,7 @@ def _type_rows(per_type: dict) -> list[dict]:
                 "inter_r": inter_r,
                 "inter_f1": _f1(inter_p, inter_r),
                 "leak": leak,
+                "visible": visible,
                 "misses": stats["misses"][:5],
                 "fp": stats["fp"][:5],
             }
@@ -228,13 +249,16 @@ def render_report(results: dict) -> str:
     lines.append("## По типам")
     lines.append("")
     lines.append(
-        "| Тип | P (точн.) | R (точн.) | F1 (точн.) | P (перес.) | R (перес.) | F1 (перес.) | Утечка |"
+        "| Тип | P (точн.) | R (точн.) | F1 (точн.) | P (перес.) | R (перес.) | F1 (перес.) "
+        "| Утечка | Видимо |"
     )
-    lines.append("|-----|-----|-----|-----|-----|-----|-----|-----|")
+    lines.append("|-----|-----|-----|-----|-----|-----|-----|-----|-----|")
     for row in rows:
         lines.append(
-            f"| {row['type']} | {row['exact_p']:.3f} | {row['exact_r']:.3f} | {row['exact_f1']:.3f} "
-            f"| {row['inter_p']:.3f} | {row['inter_r']:.3f} | {row['inter_f1']:.3f} | {row['leak']:.3f} |"
+            f"| {row['type']} | {row['exact_p']:.3f} | {row['exact_r']:.3f} "
+            f"| {row['exact_f1']:.3f} "
+            f"| {row['inter_p']:.3f} | {row['inter_r']:.3f} | {row['inter_f1']:.3f} "
+            f"| {row['leak']:.3f} | {row['visible']:.3f} |"
         )
     lines.append("")
     lines.append("## Промахи")
@@ -259,7 +283,6 @@ def render_report(results: dict) -> str:
 
 
 def summary_json(results: dict) -> dict:
-    rows = _type_rows(results["per_type"])
     return {
         "phrases": results["phrases"],
         "similarity": results["similarity"],
@@ -267,7 +290,7 @@ def summary_json(results: dict) -> dict:
         "trap_fp": results["trap_fp"],
         "time_mean_ms": results["time_mean"],
         "time_p95_ms": results["time_p95"],
-        "types": rows,
+        "types": _type_rows(results["per_type"]),
     }
 
 

@@ -15,7 +15,7 @@ SETTLEMENT_MARKERS = r"(?:г\.|гор\.|город|с\.|село|пос\.|дер
 BIRTH_PLACE_MARKERS = r"(?:место рождения|м\.р\.|м/р|уроженец|уроженка|уроженца)"
 FIELD_MARKERS = r"(?:дата|паспорт|адрес|гражданство|телефон|снилс|инн|пол)"
 BIRTH_PLACE_RE = re.compile(
-    rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:—]?\s*(.+?)(?=;|\n|,\s*(?:{FIELD_MARKERS})|$)"
+    rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:-]?\s*(.+?)(?=;|\n|,\s*(?:{FIELD_MARKERS})|$)"
 )
 
 BORN_RE = re.compile(
@@ -27,7 +27,7 @@ CITIZENSHIP_MARKERS = r"(?:гражданство|гражданин|гражд�
 _country_names = sorted(COUNTRIES, key=len, reverse=True)
 COUNTRY_PATTERN = "|".join(re.escape(name) + r"\w*" for name in _country_names)
 
-CITIZENSHIP_RE = re.compile(rf"(?<!\w){CITIZENSHIP_MARKERS}\s*[:—\-]?\s*({COUNTRY_PATTERN})(?!\w)")
+CITIZENSHIP_RE = re.compile(rf"(?<!\w){CITIZENSHIP_MARKERS}\s*[:-]?\s*({COUNTRY_PATTERN})(?!\w)")
 CITIZENSHIP_ADJ_RE = re.compile(rf"(?<!\w)({COUNTRY_PATTERN})\s+гражданство(?!\w)")
 
 _MAX_BIRTH_PLACE = 80

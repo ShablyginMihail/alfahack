@@ -77,6 +77,9 @@ def _passport_rules() -> Sequence[PatternRule]:
             group=1,
             context=PASSPORT_CONTEXT,
             context_bonus=0.2,
+            # «серия … номер …» после «водительское удостоверение» — это ВУ, а не паспорт
+            negative=DRIVER_CONTEXT,
+            negative_penalty=0.5,
             part="series",
         ),
         PatternRule(
@@ -86,6 +89,8 @@ def _passport_rules() -> Sequence[PatternRule]:
             group=1,
             context=PASSPORT_CONTEXT,
             context_bonus=0.45,
+            negative=DRIVER_CONTEXT,
+            negative_penalty=0.5,
             part="number",
         ),
     )

@@ -71,3 +71,10 @@ def test_country_without_label_not_masked() -> None:
 def test_case_insensitive() -> None:
     assert _mask("МЕСТО РОЖДЕНИЯ: Г. МОСКВА") == "МЕСТО РОЖДЕНИЯ: Г. ******"
     assert _mask("ГРАЖДАНСТВО: РФ") == "ГРАЖДАНСТВО: **"
+
+
+def test_birth_place_span_starts_at_value() -> None:
+    text = "Место рождения — Саратовская обл., с. Ивановка"
+    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "BIRTH_PLACE"]
+    assert spans
+    assert text[spans[0].start : spans[0].end].startswith("Саратовская")

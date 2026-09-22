@@ -131,6 +131,7 @@ class DateRecognizer(Recognizer):
     def _classify(self, doc: Document, start: int, end: int, year: int) -> Span | None:
         if (
             find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before") is not None
+            or find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after") is not None
             or find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both") is not None
         ):
             return Span(start, end, "BIRTH_DATE", 0.9, self.name)
@@ -144,6 +145,7 @@ class DateRecognizer(Recognizer):
     def _classify_words(self, doc: Document, start: int, end: int) -> Span | None:
         if (
             find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before") is not None
+            or find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after") is not None
             or find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both") is not None
         ):
             return Span(start, end, "BIRTH_DATE", 0.9, self.name)
@@ -154,6 +156,7 @@ class DateRecognizer(Recognizer):
     def _classify_year_only(self, doc: Document, start: int, end: int) -> Span | None:
         if (
             find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before") is not None
+            or find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after") is not None
             or find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both") is not None
         ):
             return Span(start, end, "BIRTH_DATE", 0.9, self.name)

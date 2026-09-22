@@ -224,6 +224,35 @@ LATIN_STOP_WORDS = frozenset(
         "of",
     }
 )
+ABBREVIATION_STOP_WORDS = frozenset(
+    {
+        "инн",
+        "снилс",
+        "огрн",
+        "огрнип",
+        "кпп",
+        "бик",
+        "окпо",
+        "оквэд",
+        "пин",
+        "cvv",
+        "cvc",
+        "мвд",
+        "фмс",
+        "уфмс",
+        "рф",
+        "рб",
+        "сша",
+        "ооо",
+        "оао",
+        "зао",
+        "пао",
+        "ао",
+        "ип",
+        "тп",
+        "гу",
+    }
+)
 TRANSLIT_NAMES = frozenset(
     {
         "ivan",
@@ -414,6 +443,10 @@ class NameRecognizer(Recognizer):
     def _classify(self, token: _Token) -> None:
         if token.is_init:
             token.roles = frozenset({"INIT"})
+            return
+        if token.text in ABBREVIATION_STOP_WORDS:
+            token.roles = frozenset()
+            token.normal = token.text
             return
         roles: set[str] = set()
         normal = token.text

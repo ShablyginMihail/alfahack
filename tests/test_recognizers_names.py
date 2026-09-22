@@ -126,3 +126,8 @@ def test_latin_name_without_context_person() -> None:
 def test_latin_stop_words_not_masked() -> None:
     assert not _has_person("VISA CARD")
     assert not _has_person("Mastercard Gold")
+
+
+def test_inn_not_person() -> None:
+    result = _mask("Заемщик Кузнецов Петр, ИНН 500100732259")
+    assert "ИНН" in result
