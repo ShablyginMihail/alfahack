@@ -30,7 +30,7 @@ def _snils(base9: str) -> str:
 
 def test_passport_masked() -> None:
     text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
-    assert _mask(text) == "Клиент Иванов Иван Иванович, паспорт 45** ****56"
+    assert _mask(text) == "Клиент И. И. И., паспорт 45** ****56"
 
 
 def test_passport_separate() -> None:

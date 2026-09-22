@@ -14,6 +14,7 @@ RUN pip install .
 COPY gunicorn.conf.py ./
 COPY config/ ./config/
 COPY static/ ./static/
+COPY data/ ./data/
 
 RUN useradd --system app
 USER app

@@ -30,6 +30,9 @@ _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
 def warm_up(engine: Engine) -> None:
+    from pii_guard.recognizers.names import get_morph
+
+    get_morph()
     engine.mask("тест", CHECKER_PROFILE)
 
 

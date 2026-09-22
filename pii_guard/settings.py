@@ -23,6 +23,7 @@ class Settings(BaseSettings):
         "pii_guard.recognizers.numeric",
         "pii_guard.recognizers.documents",
         "pii_guard.recognizers.dates",
+        "pii_guard.recognizers.names",
     ]
 
 
