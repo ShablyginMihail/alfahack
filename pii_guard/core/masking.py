@@ -23,6 +23,10 @@ DEFAULT_PARTIAL_SPECS: dict[str, PartialSpec] = {
     "DRIVER_LICENSE": PartialSpec(2, 2),
     "FOREIGN_PASSPORT": PartialSpec(2, 2),
     "SNILS": PartialSpec(0, 2),
+    "PASSPORT:series": PartialSpec(2, 0),
+    "PASSPORT:number": PartialSpec(0, 2),
+    "DRIVER_LICENSE:series": PartialSpec(2, 0),
+    "DRIVER_LICENSE:number": PartialSpec(0, 2),
 }
 
 
@@ -177,7 +181,10 @@ class DefaultMasker:
             return mask_email(original, self._mask_char)
         if span.pii_type == "PHONE":
             return mask_phone(original, self._mask_char)
-        spec = self._partial_specs.get(span.pii_type, PartialSpec(0, 0))
+        key = f"{span.pii_type}:{span.part}" if span.part else span.pii_type
+        spec = self._partial_specs.get(
+            key, self._partial_specs.get(span.pii_type, PartialSpec(0, 0))
+        )
         return mask_partial(original, spec, self._mask_char)
 
     def _label_mask(self, span: Span, original: str) -> str:

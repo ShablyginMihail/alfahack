@@ -8,8 +8,13 @@ from pii_guard.core.normalize import Document, normalize
 
 def compile_keywords(words: Iterable[str]) -> re.Pattern[str]:
     normalized = sorted({normalize(word) for word in words}, key=len, reverse=True)
-    alternatives = "|".join(re.escape(word) for word in normalized)
-    return re.compile(rf"(?<!\w)(?:{alternatives})\w*")
+    alternatives = []
+    for word in normalized:
+        if len(word) <= 3:
+            alternatives.append(rf"{re.escape(word)}(?!\w)")
+        else:
+            alternatives.append(rf"{re.escape(word)}\w*")
+    return re.compile(rf"(?<!\w)(?:{'|'.join(alternatives)})")
 
 
 def find_keyword(

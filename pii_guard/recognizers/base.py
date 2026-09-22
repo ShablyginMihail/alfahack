@@ -25,6 +25,7 @@ class PatternRule:
     context_direction: str = "both"
     negative: re.Pattern[str] | None = None
     negative_penalty: float = 0.0
+    part: str | None = None
 
 
 class RegexRecognizer(Recognizer):
@@ -67,6 +68,7 @@ class RegexRecognizer(Recognizer):
                         pii_type=rule.pii_type,
                         score=score,
                         recognizer=self.name,
+                        part=rule.part,
                     )
                 )
         return spans

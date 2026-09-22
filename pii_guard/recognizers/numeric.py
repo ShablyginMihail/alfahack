@@ -26,11 +26,11 @@ CARD_RUN_RE = re.compile(r"(?<!\d)\d{13,19}(?!\d)")
 
 INN_RUN_RE = re.compile(r"(?<!\d)(?:\d{10}|\d{12})(?!\d)")
 INN_SEPARATED_RE = re.compile(r"(?<!\d)\d{2,4}[\s-]\d{2,4}[\s-]\d{2,6}(?!\d)")
-CVV_RE = re.compile(r"(?<!\d)(?<!\d[\s-])\d{3,4}(?![\s-]\d)(?!\d)")
-PIN_RE = re.compile(r"(?<!\d)(?<!\d[\s-])\d{4,6}(?![\s-]\d)(?!\d)")
+CVV_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{3,4}(?![\s-]\d)(?!\d)")
+PIN_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{4,6}(?![\s-]\d)(?!\d)")
 
 PHONE_CONTEXT = compile_keywords(
-    ["тел", "телефон", "моб", "звон", "whatsapp", "telegram", "контакт"]
+    ["тел", "телефон", "моб", "мобил", "звон", "whatsapp", "telegram", "контакт"]
 )
 CARD_CONTEXT = compile_keywords(["карт", "card", "visa", "mastercard", "мир", "maestro"])
 CARD_NEGATIVE = compile_keywords(

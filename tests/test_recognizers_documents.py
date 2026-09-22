@@ -1,0 +1,85 @@
+from pii_guard.core.engine import Engine
+from pii_guard.core.masking import DefaultMasker
+from pii_guard.core.policy import CHECKER_PROFILE
+from pii_guard.core.registry import RecognizerRegistry
+from pii_guard.core.types import default_type_registry
+from pii_guard.settings import Settings
+
+
+def _engine() -> Engine:
+    registry = RecognizerRegistry.from_modules(Settings().recognizer_modules)
+    return Engine(registry, DefaultMasker(default_type_registry()))
+
+
+def _mask(text: str) -> str:
+    return _engine().mask(text, CHECKER_PROFILE).text
+
+
+def _types(text: str) -> set[str]:
+    return {span.pii_type for span in _engine().analyze(text, CHECKER_PROFILE)}
+
+
+def _snils(base9: str) -> str:
+    total = sum(int(ch) * (9 - i) for i, ch in enumerate(base9))
+    if total > 101:
+        total %= 101
+    if total in (100, 101):
+        total = 0
+    return base9 + f"{total:02d}"
+
+
+def test_passport_masked() -> None:
+    text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+    assert _mask(text) == "Клиент Иванов Иван Иванович, паспорт 45** ****56"
+
+
+def test_passport_separate() -> None:
+    assert _mask("серия 4509 номер 123456") == "серия 45** номер ****56"
+
+
+def test_passport_separate_with_no() -> None:
+    assert _mask("паспорт серии 45 09 № 123456") != "паспорт серии 45 09 № 123456"
+
+
+def test_passport_no_context_not_masked() -> None:
+    assert _mask("4509 123456") == "4509 123456"
+
+
+def test_division_code() -> None:
+    assert _mask("код подразделения 770-001") == "код подразделения ***-***"
+
+
+def test_division_code_no_context_not_masked() -> None:
+    assert _mask("770-001") == "770-001"
+
+
+def test_driver_license_type() -> None:
+    assert "DRIVER_LICENSE" in _types("водительское удостоверение 99 12 345678")
+
+
+def test_driver_old_format_masked() -> None:
+    assert _mask("ВУ 77 АВ 123456") != "ВУ 77 АВ 123456"
+
+
+def test_passport_99_12_type() -> None:
+    assert "PASSPORT" in _types("паспорт 99 12 345678")
+
+
+def test_snils_masked() -> None:
+    assert _mask("СНИЛС 112-233-445 95") != "СНИЛС 112-233-445 95"
+
+
+def test_snils_11_digits_with_context() -> None:
+    number = _snils("112233445")
+    assert "SNILS" in _types(f"СНИЛС {number}")
+    assert "PHONE" not in _types(f"СНИЛС {number}")
+
+
+def test_foreign_passport() -> None:
+    assert "FOREIGN_PASSPORT" in _types("загранпаспорт 75 1234567")
+
+
+def test_case_insensitive() -> None:
+    assert _mask("ПАСПОРТ 4509 123456") == "ПАСПОРТ 45** ****56"
+    assert _mask("Серия 4509 номер 123456") == "Серия 45** номер ****56"
+    assert _mask("СНИЛС 112-233-445 95") != "СНИЛС 112-233-445 95"

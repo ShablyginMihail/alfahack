@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     max_body_bytes: int = 4_000_000
     log_level: str = "INFO"
     config_dir: Path = Path("config")
-    recognizer_modules: list[str] = ["pii_guard.recognizers.numeric"]
+    recognizer_modules: list[str] = [
+        "pii_guard.recognizers.numeric",
+        "pii_guard.recognizers.documents",
+    ]
 
 
 @lru_cache

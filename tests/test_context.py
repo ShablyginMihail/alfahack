@@ -114,3 +114,31 @@ def test_no_keyword_returns_none() -> None:
     doc = _doc("просто текст 1234")
     start = doc.norm.index("1234")
     assert find_keyword(doc, start, start + 4, pattern) is None
+
+
+def test_short_word_does_not_match_longer_word() -> None:
+    pattern = compile_keywords(["ву"])
+    doc = _doc("вуз 1234")
+    start = doc.norm.index("1234")
+    assert find_keyword(doc, start, start + 4, pattern) is None
+
+
+def test_short_word_mir_does_not_match_mirovoy() -> None:
+    pattern = compile_keywords(["мир"])
+    doc = _doc("мировой 1234")
+    start = doc.norm.index("1234")
+    assert find_keyword(doc, start, start + 4, pattern) is None
+
+
+def test_short_word_matches_standalone() -> None:
+    pattern = compile_keywords(["ву"])
+    doc = _doc("ву 1234")
+    start = doc.norm.index("1234")
+    assert find_keyword(doc, start, start + 4, pattern) is not None
+
+
+def test_short_word_matches_in_hyphenated_word() -> None:
+    pattern = compile_keywords(["пин"])
+    doc = _doc("пин-код 1234")
+    start = doc.norm.index("1234")
+    assert find_keyword(doc, start, start + 4, pattern) is not None
