@@ -83,3 +83,36 @@ def test_case_insensitive() -> None:
     assert _mask("ПАСПОРТ 4509 123456") == "ПАСПОРТ 45** ****56"
     assert _mask("Серия 4509 номер 123456") == "Серия 45** номер ****56"
     assert _mask("СНИЛС 112-233-445 95") != "СНИЛС 112-233-445 95"
+
+
+def test_year_after_passport_not_masked() -> None:
+    text = "Паспорт 4509 123456 выдан 12.05.2015"
+    assert _mask(text) == "Паспорт 45** ****56 выдан 12.05.2015"
+
+
+def test_year_with_passport_not_masked() -> None:
+    assert _mask("Паспорт получен в 2015 году") == "Паспорт получен в 2015 году"
+
+
+def test_working_hours_not_masked() -> None:
+    assert (
+        _mask("Паспортный стол работает с 0900 до 1800")
+        == "Паспортный стол работает с 0900 до 1800"
+    )
+
+
+def test_year_after_driver_license_not_masked() -> None:
+    text = "Водительские права 77 АВ 123456, выданы в 2019"
+    assert _mask(text) == "Водительские права 77 ** ****56, выданы в 2019"
+
+
+def test_application_number_with_passport_not_masked() -> None:
+    assert _mask("номер заявки 123456 паспорт") == "номер заявки 123456 паспорт"
+
+
+def test_passport_separate_with_labels() -> None:
+    assert _mask("Серия паспорта: 45 09, номер: 123456") == "Серия паспорта: 45 **, номер: ****56"
+
+
+def test_passport_separate_plain() -> None:
+    assert _mask("серия 4509 номер 123456") == "серия 45** номер ****56"

@@ -10,15 +10,19 @@ from pii_guard.recognizers.validators import snils_valid
 
 PASSPORT_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?(?:№\s*)?\d{6}(?!\d)")
 PASSPORT_RUN_RE = re.compile(r"(?<!\d)\d{10}(?!\d)")
-PASSPORT_SERIES_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}(?!\d)")
-PASSPORT_NUMBER_RE = re.compile(r"(?<!\d)\d{6}(?!\d)")
+PASSPORT_SERIES_RE = re.compile(
+    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:паспорта\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?!\d)"
+)
+PASSPORT_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:паспорта\s*)?[:.]?\s*(\d{6})(?!\d)")
 
 DIVISION_CODE_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}(?!\d)")
 
 DRIVER_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?\d{6}(?!\d)")
 DRIVER_OLD_RE = re.compile(r"(?<!\d)\d{2}[\s-]?[А-Яа-яЁё]{2}[\s-]?\d{6}(?!\d)")
-DRIVER_SERIES_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}(?!\d)")
-DRIVER_NUMBER_RE = re.compile(r"(?<!\d)\d{6}(?!\d)")
+DRIVER_SERIES_RE = re.compile(
+    r"(?<!\w)(?:серия|серии|сер\.)\s*(?:удостоверения\s*)?[:№]?\s*(\d{2}[\s-]?\d{2})(?!\d)"
+)
+DRIVER_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:удостоверения\s*)?[:.]?\s*(\d{6})(?!\d)")
 
 SNILS_GROUPED_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}[\s-]\d{3}[\s-]?\d{2}(?!\d)")
 SNILS_RUN_RE = re.compile(r"(?<!\d)\d{11}(?!\d)")
@@ -52,15 +56,17 @@ def _passport_rules() -> Sequence[PatternRule]:
         PatternRule(
             "PASSPORT",
             PASSPORT_SERIES_RE,
-            0.45,
+            0.75,
+            group=1,
             context=PASSPORT_CONTEXT,
-            context_bonus=0.45,
+            context_bonus=0.2,
             part="series",
         ),
         PatternRule(
             "PASSPORT",
             PASSPORT_NUMBER_RE,
-            0.45,
+            0.3,
+            group=1,
             context=PASSPORT_CONTEXT,
             context_bonus=0.45,
             part="number",
@@ -107,6 +113,7 @@ def _driver_rules() -> Sequence[PatternRule]:
             "DRIVER_LICENSE",
             DRIVER_SERIES_RE,
             0.2,
+            group=1,
             context=DRIVER_CONTEXT,
             context_bonus=0.5,
             part="series",
@@ -115,6 +122,7 @@ def _driver_rules() -> Sequence[PatternRule]:
             "DRIVER_LICENSE",
             DRIVER_NUMBER_RE,
             0.2,
+            group=1,
             context=DRIVER_CONTEXT,
             context_bonus=0.5,
             part="number",
