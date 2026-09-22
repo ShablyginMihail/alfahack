@@ -30,7 +30,7 @@ BORN_RE = re.compile(
     rf"([а-яё]+(?:-[а-яё]+)*(?:\s+[а-яё]+(?:-[а-яё]+)*)?)(?!\w)"
 )
 
-CITIZENSHIP_MARKERS = r"(?:гражданство|гражданин|гражданка|подданство|citizenship)"
+CITIZENSHIP_MARKERS = r"(?:граждан\w*|подданств\w*|подданн\w*|citizenship)"
 
 _country_names = sorted(COUNTRIES, key=len, reverse=True)
 COUNTRY_PATTERN = "|".join(re.escape(name) + r"\w*" for name in _country_names)

@@ -228,6 +228,10 @@ def test_whole_payload_prospekt() -> None:
     assert _mask_full("Ленинский проспект") == "********* проспект"
 
 
+def test_whole_payload_person_and_street() -> None:
+    assert _mask_full("Иванов Иван, ул. Ленина") == "***********, ул. ******"
+
+
 def test_whole_payload_house_apartment() -> None:
     assert _mask_full("д. 5") == "д. *"
     assert _mask_full("кв. 12") == "кв. **"

@@ -166,7 +166,7 @@ class StandaloneValueRecognizer(Recognizer):
     def _match_issuer(region: str) -> tuple[str, int, int] | None:
         if (
             ORGAN_WORD_RE.match(region)
-            and len(region.split()) <= 12
+            and len(region.split()) <= 25
             and _DEPARTMENT_RE.search(region) is not None
         ):
             return "PASSPORT_ISSUER", 0, len(region)

@@ -86,6 +86,14 @@ def test_citizenship_genitive() -> None:
     assert "CITIZENSHIP" in _types("Гражданство: Грузии")
 
 
+def test_citizenship_kyrgyz_republic() -> None:
+    _span_at("является гражданкой Кыргызской Республики", "Кыргызской Республики", "CITIZENSHIP")
+
+
+def test_citizenship_kyrgyz_genitive() -> None:
+    _span_at("гражданином Киргизии", "Киргизии", "CITIZENSHIP")
+
+
 def test_birth_place_cut_on_pin() -> None:
     text = "МЕСТО РОЖДЕНИЯ Г. САРАТОВ, ПИН 7520"
     spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "BIRTH_PLACE"]

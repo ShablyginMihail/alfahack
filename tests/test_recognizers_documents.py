@@ -207,6 +207,17 @@ def test_passport_combined_with_vydan() -> None:
     assert "PASSPORT" in _types("4510 654321 выдан ОВД района Хамовники")
 
 
+def test_driver_license_with_vydano_not_passport() -> None:
+    text = "Водительское удостоверение 99 12 345678, выдано 12.05.2015"
+    _span_at(text, "99 12 345678", "DRIVER_LICENSE")
+    assert "PASSPORT" not in _types(text)
+
+
+def test_passport_with_vydan_still_passport() -> None:
+    text = "Паспорт 4510 654321 выдан ОВД"
+    _span_at(text, "4510 654321", "PASSPORT")
+
+
 def test_division_code_kp() -> None:
     assert "DIVISION_CODE" in _types("к.п. 370-012")
     assert "DIVISION_CODE" in _types("кп 370-012")

@@ -95,3 +95,14 @@ def test_standalone_exceptions_not_found() -> None:
         doc = Document.from_text(value)
         spans = [s for s in recognizer.find(doc)]
         assert not spans, value
+
+
+def test_standalone_long_issuer() -> None:
+    text = "ТП № 2 ОУФМС России по Санкт-Петербургу и Ленинградской обл. в Приморском р-не"
+    recognizer = StandaloneValueRecognizer()
+    doc = Document.from_text(text)
+    spans = [s for s in recognizer.find(doc)]
+    assert spans
+    span = spans[0]
+    assert span.pii_type == "PASSPORT_ISSUER"
+    assert doc.text[span.start : span.end] == text

@@ -68,6 +68,8 @@ def _passport_rules() -> Sequence[PatternRule]:
             0.45,
             context=PASSPORT_COMBINED_CONTEXT,
             context_bonus=0.45,
+            negative=DRIVER_CONTEXT,
+            negative_penalty=0.5,
         ),
         PatternRule(
             "PASSPORT",
