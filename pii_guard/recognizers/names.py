@@ -344,6 +344,22 @@ def _load_public_figures() -> frozenset[str]:
 PUBLIC_FIGURES = _load_public_figures()
 
 
+def _load_cities() -> frozenset[str]:
+    path = Path(__file__).resolve().parent.parent.parent / "data" / "dicts" / "cities.txt"
+    if not path.exists():
+        return frozenset()
+    return frozenset(
+        line.strip().lower()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
+
+
+CITIES = _load_cities()
+
+_SINGLE_LETTER_INITIALS = frozenset({"г", "с", "д", "п", "х", "к", "м"})
+
+
 @dataclass(slots=True)
 class _Token:
     start: int
@@ -364,10 +380,37 @@ class NameRecognizer(Recognizer):
         if tokens:
             for token in tokens:
                 self._classify(token)
+            self._clear_place_initials(doc, tokens)
             self._apply_fallbacks(doc, tokens)
             spans.extend(self._combinations(doc, tokens))
         spans.extend(self._latin_names(doc))
         return spans
+
+    def _clear_place_initials(self, doc: Document, tokens: list[_Token]) -> None:
+        for i, token in enumerate(tokens):
+            if not token.is_init or token.text[:-1] not in _SINGLE_LETTER_INITIALS:
+                continue
+            if i + 1 >= len(tokens):
+                continue
+            nxt = tokens[i + 1]
+            if self._is_place_word(nxt.text):
+                token.roles = frozenset()
+                token.is_init = False
+
+    @staticmethod
+    def _is_place_word(word: str) -> bool:
+        if word in CITIES:
+            return True
+        try:
+            normal = str(parse_word(word)[0].normal_form)
+        except Exception:
+            return False
+        if normal in CITIES:
+            return True
+        try:
+            return any("Geox" in parse.tag for parse in parse_word(word))
+        except Exception:
+            return False
 
     def _combinations(self, doc: Document, tokens: list[_Token]) -> list[Span]:
         spans: list[Span] = []

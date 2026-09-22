@@ -159,3 +159,23 @@ def test_issuer_no_organ() -> None:
 
 def test_issuer_tovar() -> None:
     assert "PASSPORT_ISSUER" not in _types("Товар выдан покупателю")
+
+
+def test_issuer_date_words_not_organ() -> None:
+    assert "PASSPORT_ISSUER" not in _types(
+        "выдан третьего августа тысяча девятьсот восемьдесят пятого г."
+    )
+
+
+def test_issuer_cut_on_inn() -> None:
+    text = "выдан оуфмс россии по г. самара, инн 5605628738"
+    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
+    assert spans
+    assert text[spans[0].start : spans[0].end] == "оуфмс россии по г. самара"
+
+
+def test_issuer_cut_on_pin() -> None:
+    text = "выдан оуфмс россии по г. москва, пин 6232"
+    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
+    assert spans
+    assert text[spans[0].start : spans[0].end] == "оуфмс россии по г. москва"

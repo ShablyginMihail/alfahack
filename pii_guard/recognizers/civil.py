@@ -11,11 +11,11 @@ from pii_guard.recognizers.base import cut_period
 from pii_guard.recognizers.names import parse_word
 
 SETTLEMENT_MARKERS = r"(?:г\.|гор\.|город|с\.|село|пос\.|дер\.)"
+PLACE_MARKERS = r"(?:г\.|гор\.|город|с\.|село|пос\.|дер\.|обл\.|область|р-н|район|край|республика)"
 
 BIRTH_PLACE_MARKERS = r"(?:место рождения|м\.р\.|м/р|уроженец|уроженка|уроженца)"
-FIELD_MARKERS = r"(?:дата|паспорт|адрес|гражданство|телефон|снилс|инн|пол)"
 BIRTH_PLACE_RE = re.compile(
-    rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:-]?\s*(.+?)(?=;|\n|,\s*(?:{FIELD_MARKERS})|$)"
+    rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:-]?\s*(.+?)(?=;|\n|,\s*(?!{PLACE_MARKERS})|$)"
 )
 
 BORN_RE = re.compile(
@@ -29,6 +29,9 @@ COUNTRY_PATTERN = "|".join(re.escape(name) + r"\w*" for name in _country_names)
 
 CITIZENSHIP_RE = re.compile(rf"(?<!\w){CITIZENSHIP_MARKERS}\s*[:-]?\s*({COUNTRY_PATTERN})(?!\w)")
 CITIZENSHIP_ADJ_RE = re.compile(rf"(?<!\w)({COUNTRY_PATTERN})\s+гражданство(?!\w)")
+CITIZENSHIP_FIRST_WORD_RE = re.compile(
+    rf"(?<!\w){CITIZENSHIP_MARKERS}\s*[:-]?\s*([а-яё]+(?:-[а-яё]+)*)"
+)
 
 _MAX_BIRTH_PLACE = 80
 
@@ -71,6 +74,9 @@ class CivilRecognizer(Recognizer):
         spans: list[Span] = []
         for match in CITIZENSHIP_RE.finditer(doc.norm):
             spans.append(Span(match.start(1), match.end(1), "CITIZENSHIP", 0.9, self.name))
+        for match in CITIZENSHIP_FIRST_WORD_RE.finditer(doc.norm):
+            if self._normal_form(match.group(1)) in COUNTRIES:
+                spans.append(Span(match.start(1), match.end(1), "CITIZENSHIP", 0.9, self.name))
         for match in CITIZENSHIP_ADJ_RE.finditer(doc.norm):
             spans.append(Span(match.start(1), match.end(1), "CITIZENSHIP", 0.9, self.name))
         return spans

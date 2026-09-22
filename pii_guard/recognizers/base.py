@@ -41,6 +41,12 @@ def cut_period(value: str) -> str:
     return value
 
 
+FIELD_LABELS = re.compile(
+    r"(?:инн|пин|cvv|cvc|адрес|держатель|гражданство|телефон|тел|email|почта|дата|код|карта|"
+    r"снилс|клиент|место|паспорт|серия|номер|ву|водительское)"
+)
+
+
 @dataclass(frozen=True, slots=True)
 class PatternRule:
     pii_type: str

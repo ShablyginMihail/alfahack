@@ -101,3 +101,9 @@ def test_tverskaya_street() -> None:
         _mask("адрес доставки: Тверская улица, д. 7, кв. 3")
         == "адрес доставки: ******** улица, д. *, кв. *"
     )
+
+
+def test_region_republic_case() -> None:
+    text = "проживает по адресу республике татарстан, г. тольятти"
+    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "ADDRESS"]
+    assert any(text[s.start : s.end] == "татарстан" for s in spans)

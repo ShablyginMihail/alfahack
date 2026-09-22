@@ -78,3 +78,16 @@ def test_birth_place_span_starts_at_value() -> None:
     spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "BIRTH_PLACE"]
     assert spans
     assert text[spans[0].start : spans[0].end].startswith("Саратовская")
+
+
+def test_citizenship_genitive() -> None:
+    assert "CITIZENSHIP" in _types("гражданка украины")
+    assert "CITIZENSHIP" in _types("Гражданин Армении")
+    assert "CITIZENSHIP" in _types("Гражданство: Грузии")
+
+
+def test_birth_place_cut_on_pin() -> None:
+    text = "МЕСТО РОЖДЕНИЯ Г. САРАТОВ, ПИН 7520"
+    spans = [s for s in _engine().analyze(text, CHECKER_PROFILE) if s.pii_type == "BIRTH_PLACE"]
+    assert spans
+    assert text[spans[0].start : spans[0].end] == "САРАТОВ"

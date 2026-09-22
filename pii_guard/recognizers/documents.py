@@ -7,7 +7,7 @@ from pii_guard.core.context import compile_keywords, find_keyword
 from pii_guard.core.models import Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
-from pii_guard.recognizers.base import PatternRule, RegexRecognizer, cut_period
+from pii_guard.recognizers.base import FIELD_LABELS, PatternRule, RegexRecognizer, cut_period
 from pii_guard.recognizers.validators import snils_valid
 
 PASSPORT_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?(?:№\s*)?\d{6}(?!\d)")
@@ -45,6 +45,7 @@ ORGAN_MARKERS = (
     r"(?:уфмс|оуфмс|фмс|увм|гувм|овм|мвд|увд|овд|ровд|оувд|гу|тп|"
     r"отдел|отделом|отделением|отделение|управление|управлением|паспортно-визов|пвс|милиции|полиции)"
 )
+ORGAN_WORD_RE = re.compile(rf"(?<!\w)(?:{ORGAN_MARKERS})(?!\w)")
 ISSUER_RE = re.compile(rf"(?<!\w){ISSUER_MARKERS}\s*[:]?\s*")
 ISSUER_DATE_RE = re.compile(r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[а-яё]+")
 ISSUER_DIVISION_RE = re.compile(r"\d{3}-\d{3}")
@@ -227,6 +228,9 @@ class PassportIssuerRecognizer(Recognizer):
             idx = norm.find(sep, start)
             if idx != -1:
                 candidates.append(idx)
+        field_match = re.search(rf",\s*{FIELD_LABELS.pattern}", norm[start:])
+        if field_match is not None:
+            candidates.append(start + field_match.start())
         period = cut_period(norm[start:])
         if len(period) < len(norm) - start:
             candidates.append(start + len(period))
@@ -237,7 +241,7 @@ class PassportIssuerRecognizer(Recognizer):
     @staticmethod
     def _has_organ_marker(value: str) -> bool:
         first_words = " ".join(value.split()[:3])
-        return re.search(ORGAN_MARKERS, first_words) is not None
+        return ORGAN_WORD_RE.search(first_words) is not None
 
 
 def recognizers() -> list[Recognizer]:

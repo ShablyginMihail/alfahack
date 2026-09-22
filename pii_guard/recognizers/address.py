@@ -38,7 +38,7 @@ STREET_AFTER_RE = re.compile(
 )
 
 REGION_RE = re.compile(r"(?<!\w)([а-яё]+(?:-[а-яё]+)*)\s+(?:обл\.|область|край)(?!\w)")
-REGION_REPUBLIC_RE = re.compile(r"(?<!\w)республика\s+([а-яё]+(?:-[а-яё]+)*)(?!\w)")
+REGION_REPUBLIC_RE = re.compile(r"(?<!\w)республик\w*\s+([а-яё]+(?:-[а-яё]+)*)(?!\w)")
 REGION_AO_RE = re.compile(r"(?<!\w)([а-яё]+(?:-[а-яё]+)*)\s+(?:АО|автономный\s+округ)(?!\w)")
 
 HOUSE_RE = re.compile(

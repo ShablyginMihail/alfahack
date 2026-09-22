@@ -35,6 +35,18 @@ def test_birth_date_context_after() -> None:
     assert "BIRTH_DATE" in _types("1985-03-12 день рождения")
 
 
+def test_words_date_without_goda() -> None:
+    assert "BIRTH_DATE" in _types(
+        "Родился тринадцатого сентября тысяча девятьсот восемьдесят пятого"
+    )
+
+
+def test_words_date_issue_without_goda() -> None:
+    assert "PASSPORT_ISSUE_DATE" in _types(
+        "паспорт выдан девятого января тысяча девятьсот восемьдесят пятого"
+    )
+
+
 def test_birth_date_gr_after() -> None:
     assert _mask("г.р. 1985.12.03") == "г.р. ****.**.**"
 

@@ -60,7 +60,7 @@ YEAR_WORDS = (
 )
 
 WORDS_DATE_RE = re.compile(
-    rf"(?<!\w)(({ORDINAL_DAY})\s+{MONTH_PATTERN}(?:\.|\w*)\s+{YEAR_WORDS})\s+(?:года|год|году)(?!\w)"
+    rf"(?<!\w)(({ORDINAL_DAY})\s+{MONTH_PATTERN}(?:\.|\w*)\s+{YEAR_WORDS})(?:\s+(?:года|год|году))?(?!\w)"
 )
 YEAR_WORDS_ONLY_RE = re.compile(rf"(?<!\w)({YEAR_WORDS})\s+(?:году|года|год)(?!\w)")
 
