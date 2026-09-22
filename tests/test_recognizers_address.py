@@ -72,3 +72,32 @@ def test_price_index_not_masked() -> None:
 
 def test_postal_code_with_index() -> None:
     assert _mask("индекс 123456") == "индекс ******"
+
+
+def test_meeting_place_not_masked() -> None:
+    assert _mask("Встретимся у д. 5 на пл. Революции") == "Встретимся у д. 5 на пл. Революции"
+
+
+def test_live_in_city_on_street() -> None:
+    assert (
+        _mask("Я живу в Екатеринбурге на улице Малышева")
+        == "Я живу в ************* на улице ********"
+    )
+
+
+def test_house_and_apartment() -> None:
+    assert _mask("проживает в доме 5, квартира 12") == "проживает в доме *, квартира **"
+
+
+def test_nevsky_prospekt() -> None:
+    assert (
+        _mask("г. Санкт-Петербург, Невский пр-т, д. 28")
+        == "г. *****-*********, ******* пр-т, д. **"
+    )
+
+
+def test_tverskaya_street() -> None:
+    assert (
+        _mask("адрес доставки: Тверская улица, д. 7, кв. 3")
+        == "адрес доставки: ******** улица, д. *, кв. *"
+    )
