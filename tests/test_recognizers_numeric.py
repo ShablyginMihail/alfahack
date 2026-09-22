@@ -169,3 +169,13 @@ def test_cvv_case_insensitive() -> None:
 def test_pin_case_insensitive() -> None:
     assert _mask("ПИН 1234") == "ПИН ****"
     assert _mask("Пин 1234") == "Пин ****"
+
+
+def test_inn_separated_not_phone() -> None:
+    text = "ИНН 5758622243, ТЕЛЕФОН 901 890 88 71"
+    spans = _engine().analyze(text, CHECKER_PROFILE)
+    phone = [s for s in spans if s.pii_type == "PHONE"]
+    inn = [s for s in spans if s.pii_type == "INN"]
+    assert phone and inn
+    assert text[phone[0].start : phone[0].end] == "901 890 88 71"
+    assert text[inn[0].start : inn[0].end] == "5758622243"

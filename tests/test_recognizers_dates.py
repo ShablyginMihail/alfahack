@@ -47,6 +47,16 @@ def test_words_date_issue_without_goda() -> None:
     )
 
 
+def test_two_dates_nearest_context() -> None:
+    text = "дата рождения 03.11.97, дата выдачи 10 октября 1996"
+    spans = _engine().analyze(text, CHECKER_PROFILE)
+    birth = [s for s in spans if s.pii_type == "BIRTH_DATE"]
+    issue = [s for s in spans if s.pii_type == "PASSPORT_ISSUE_DATE"]
+    assert birth and issue
+    assert text[birth[0].start : birth[0].end] == "03.11.97"
+    assert text[issue[0].start : issue[0].end] == "10 октября 1996"
+
+
 def test_birth_date_gr_after() -> None:
     assert _mask("г.р. 1985.12.03") == "г.р. ****.**.**"
 

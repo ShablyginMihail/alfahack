@@ -135,3 +135,13 @@ def test_inn_not_person() -> None:
 
 def test_single_letter_not_initial_before_city() -> None:
     assert not _has_person("Место рождения: г. саратов")
+
+
+def test_cardholder_vs_personal_context() -> None:
+    text = "Держатель Ivan Ivanov, Клиент Петров Владимир Владимирович"
+    spans = _engine().analyze(text, CHECKER_PROFILE)
+    cardholder = [s for s in spans if s.pii_type == "CARDHOLDER"]
+    person = [s for s in spans if s.pii_type == "PERSON"]
+    assert cardholder and person
+    assert text[cardholder[0].start : cardholder[0].end] == "Ivan Ivanov"
+    assert text[person[0].start : person[0].end] == "Петров Владимир Владимирович"

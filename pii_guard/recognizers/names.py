@@ -462,10 +462,11 @@ class NameRecognizer(Recognizer):
 
     @staticmethod
     def _is_cyrillic_cardholder(doc: Document, span: Span) -> bool:
-        return (
-            find_keyword(doc, span.start, span.end, CYRILLIC_CARDHOLDER_CONTEXT, 30, "before")
-            is not None
-        )
+        holder = find_keyword(doc, span.start, span.end, CYRILLIC_CARDHOLDER_CONTEXT, 30, "before")
+        if holder is None:
+            return False
+        personal = find_keyword(doc, span.start, span.end, PERSONAL_CONTEXT, 30, "before")
+        return personal is None or holder < personal
 
     @staticmethod
     def _is_latin_person(words: list[str]) -> bool:

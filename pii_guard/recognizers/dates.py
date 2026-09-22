@@ -129,37 +129,56 @@ class DateRecognizer(Recognizer):
         return spans
 
     def _classify(self, doc: Document, start: int, end: int, year: int) -> Span | None:
-        if (
-            find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before") is not None
-            or find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after") is not None
-            or find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both") is not None
-        ):
+        birth = self._nearest(
+            [
+                find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before"),
+                find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after"),
+                find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both"),
+            ]
+        )
+        issue = find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before")
+        if birth is not None and (issue is None or birth < issue):
             return Span(start, end, "BIRTH_DATE", 0.9, self.name)
-        if find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before") is not None:
+        if issue is not None:
             return Span(start, end, "PASSPORT_ISSUE_DATE", 0.9, self.name)
         normalized = _normalize_year(year)
         if _YEAR_MIN <= normalized <= _YEAR_MAX:
             return Span(start, end, "BIRTH_DATE", 0.4, self.name)
         return None
 
+    @staticmethod
+    def _nearest(values: list[int | None]) -> int | None:
+        non_none = [v for v in values if v is not None]
+        return min(non_none) if non_none else None
+
     def _classify_words(self, doc: Document, start: int, end: int) -> Span | None:
-        if (
-            find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before") is not None
-            or find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after") is not None
-            or find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both") is not None
-        ):
+        birth = self._nearest(
+            [
+                find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before"),
+                find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after"),
+                find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both"),
+            ]
+        )
+        issue = find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before")
+        if birth is not None and (issue is None or birth < issue):
             return Span(start, end, "BIRTH_DATE", 0.9, self.name)
-        if find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before") is not None:
+        if issue is not None:
             return Span(start, end, "PASSPORT_ISSUE_DATE", 0.9, self.name)
         return None
 
     def _classify_year_only(self, doc: Document, start: int, end: int) -> Span | None:
-        if (
-            find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before") is not None
-            or find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after") is not None
-            or find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both") is not None
-        ):
+        birth = self._nearest(
+            [
+                find_keyword(doc, start, end, BIRTH_CONTEXT, 40, "before"),
+                find_keyword(doc, start, end, BIRTH_CONTEXT, 20, "after"),
+                find_keyword(doc, start, end, BIRTH_GR_CONTEXT, 40, "both"),
+            ]
+        )
+        issue = find_keyword(doc, start, end, ISSUE_CONTEXT, 40, "before")
+        if birth is not None and (issue is None or birth < issue):
             return Span(start, end, "BIRTH_DATE", 0.9, self.name)
+        if issue is not None:
+            return Span(start, end, "PASSPORT_ISSUE_DATE", 0.9, self.name)
         return None
 
 

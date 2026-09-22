@@ -135,7 +135,8 @@ def _inn_rules() -> Sequence[PatternRule]:
             0.3,
             context=INN_CONTEXT,
             context_bonus=0.45,
-            context_window=30,
+            context_window=8,
+            context_direction="before",
         ),
     )
 
