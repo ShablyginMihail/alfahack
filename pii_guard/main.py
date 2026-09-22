@@ -7,9 +7,10 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from pii_guard.api import admin, errors, health, mask, metrics, process
+from pii_guard.api import admin, errors, health, mask, metrics, process, ui
 from pii_guard.config.loader import ConfigStore
 from pii_guard.core.engine import Engine
 from pii_guard.core.policy import CHECKER_PROFILE
@@ -219,6 +220,8 @@ def create_app(
     app.include_router(mask.router)
     app.include_router(admin.router)
     app.include_router(metrics.router)
+    app.include_router(ui.router)
+    app.mount("/static", StaticFiles(directory=ui.STATIC_DIR), name="static")
 
     return app
 

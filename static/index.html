@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>PII Guard — демо</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">Модуль безопасности персональных данных</p>
+      <h1>PII Guard</h1>
+      <p class="lead">
+        Находит персональные данные в тексте и маскирует их перед отправкой в LLM.
+        Исходный текст восстанавливается по тому же идентификатору запроса.
+      </p>
+    </header>
+
+    <section class="card" aria-labelledby="source-title">
+      <div class="card-head">
+        <h2 id="source-title">Исходный текст</h2>
+      </div>
+      <div class="examples" role="group" aria-label="Примеры текстов">
+        <button type="button" class="chip" data-example="Клиент Иванов Иван Иванович, паспорт 4509 123456, выдан ОУФМС России по г. Москве 01.02.2010, код подразделения 770-001">ФИО и паспорт</button>
+        <button type="button" class="chip" data-example="Карта 4276 3801 2345 6789, CVV 123, держатель IVAN IVANOV, ПИН-код 4321">Банковская карта</button>
+        <button type="button" class="chip" data-example="Адрес: 123456, г. Москва, ул. Ленина, д. 5, кв. 12, телефон +7 999 123-45-67, email ivanov@mail.ru">Адрес и контакты</button>
+        <button type="button" class="chip" data-example="Родился 12 марта 1985 года в г. Саратов, гражданство: Россия, ИНН 500100732259">Рождение и ИНН</button>
+        <button type="button" class="chip" data-example="Поэт Александр Пушкин родился в Москве">Известный человек</button>
+      </div>
+      <label class="field-label" for="source">Текст с персональными данными</label>
+      <textarea id="source" rows="5" spellcheck="false" placeholder="Вставьте текст или выберите пример"></textarea>
+      <div class="actions">
+        <button type="button" id="mask-btn" class="button primary">Замаскировать</button>
+        <button type="button" id="unmask-btn" class="button" disabled>Восстановить</button>
+        <span class="hint">Ctrl + Enter — замаскировать</span>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="masked-title">
+      <div class="card-head">
+        <h2 id="masked-title">Маскированный текст</h2>
+        <span id="masked-meta" class="meta"></span>
+      </div>
+      <pre id="masked" class="output" aria-live="polite"></pre>
+    </section>
+
+    <section class="card" aria-labelledby="restored-title">
+      <div class="card-head">
+        <h2 id="restored-title">Восстановленный текст</h2>
+        <span id="restored-meta" class="meta"></span>
+      </div>
+      <pre id="restored" class="output" aria-live="polite"></pre>
+    </section>
+
+    <footer class="footer">
+      Запросы идут в <code>POST /process</code>. Соответствия хранятся зашифрованными
+      в Redis 30 минут, персональные данные не попадают в логи и метрики.
+    </footer>
+  </main>
+</body>
+</html>
