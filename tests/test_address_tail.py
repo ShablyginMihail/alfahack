@@ -94,3 +94,7 @@ def test_service_words_contain_entrance() -> None:
     assert "под" in SERVICE_WORDS
     assert "этаж" in SERVICE_WORDS
     assert "эт" in SERVICE_WORDS
+
+
+def test_service_word_is_not_a_street_before_tail() -> None:
+    assert _masked("ул. Чехова 30 корпус 5 кв 12 подьезд 1") == {"Чехова", "30", "5", "12", "1"}

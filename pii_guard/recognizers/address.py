@@ -9,6 +9,7 @@ from pii_guard.core.context import compile_keywords, find_keyword
 from pii_guard.core.models import Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
+from pii_guard.core.service_words import SERVICE_WORDS
 from pii_guard.recognizers.names import FUNCTION_WORDS, parse_word
 
 POSTAL_CODE_RE = re.compile(r"(?<!\d)[1-6]\d{5}(?!\d)")
@@ -378,7 +379,7 @@ class AddressRecognizer(Recognizer):
             if match is None:
                 continue
             word = match.group(1)
-            if word in FUNCTION_WORDS or word in STREET_STOP_WORDS:
+            if word in FUNCTION_WORDS or word in STREET_STOP_WORDS or word in SERVICE_WORDS:
                 continue
             if not self._is_adjective(word):
                 continue
