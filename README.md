@@ -17,7 +17,7 @@
 
 ## Быстрый старт в Docker Compose
 
-1. Скопируйте `.env.example` в `.env` и заполни ключи:
+1. Скопируйте `.env.example` в `.env` и заполните ключи:
 
    ```bash
    cp .env.example .env
