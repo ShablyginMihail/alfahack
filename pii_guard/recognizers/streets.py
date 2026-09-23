@@ -17,8 +17,8 @@ _CANDIDATE_RE = re.compile(rf"(?<!\w)([а-яё]+(?:-[а-яё]+)*)\s*[, ]\s*({_HO
 
 _TAIL_RE = re.compile(
     r"(?<!\w)(?:"
-    r"(кв|квартира|корп|корпус|к|стр|подъезд|под|этаж|офис)\s*(\d+[а-яё]?)"
-    r"|(\d+[а-яё]?)\s*(подъезд|под|этаж)"
+    r"(кв|квартира|корп|корпус|к|стр|подъезд|подьезд|под|этаж|офис)\s*(\d+[а-яё]?)"
+    r"|(\d+[а-яё]?)\s*(подъезд|подьезд|под|этаж)"
     r")(?!\w)"
 )
 
@@ -97,6 +97,7 @@ class StreetNameRecognizer(Recognizer):
             word = match.group(1)
             word_start = match.start(1)
             word_end = match.end(1)
+            house = match.group(2)
             house_start = match.start(2)
             house_end = match.end(2)
             if self._reject_after_house(doc, house_end):
@@ -107,7 +108,7 @@ class StreetNameRecognizer(Recognizer):
             if is_bank_branch(doc, street_start):
                 continue
             city = self._city_before(doc, street_start)
-            score = self._score(doc, street_words, street_start, city)
+            score = self._score(doc, street_words, street_start, city, house, house_end)
             if score is None:
                 continue
             spans.append(Span(street_start, street_end, "ADDRESS", score, self.name, part="street"))
@@ -137,17 +138,46 @@ class StreetNameRecognizer(Recognizer):
         street_words: str,
         street_start: int,
         city: tuple[int, int] | None,
+        house: str,
+        house_end: int,
     ) -> float | None:
         if _normalize_words(street_words) in _STREET_NORMAL:
-            score = 0.6
-            if self._has_address_context(doc, street_start) or city is not None:
-                score += 0.15
-            return score
+            if not self._has_street_context(doc, street_start, city, house, house_end):
+                return None
+            return 0.75
         if city is None or not doc.text[street_start].isupper():
             return None
         if len(street_words) < 3 or street_words in SERVICE_WORDS:
             return None
         return 0.75
+
+    def _has_street_context(
+        self,
+        doc: Document,
+        street_start: int,
+        city: tuple[int, int] | None,
+        house: str,
+        house_end: int,
+    ) -> bool:
+        if self._has_address_context(doc, street_start):
+            return True
+        if city is not None:
+            return True
+        if self._has_tail_context(doc, house_end):
+            return True
+        return self._has_complex_house(house)
+
+    @staticmethod
+    def _has_tail_context(doc: Document, house_end: int) -> bool:
+        norm = doc.norm
+        pos = house_end
+        while pos < len(norm) and norm[pos] in " ,":
+            pos += 1
+        return _TAIL_RE.match(norm, pos) is not None
+
+    @staticmethod
+    def _has_complex_house(house: str) -> bool:
+        return any(not ch.isdigit() for ch in house)
 
     @staticmethod
     def _reject_after_house(doc: Document, house_end: int) -> bool:

@@ -46,5 +46,34 @@ def test_office_address_not_masked() -> None:
     assert _spans(OFFICE_ADDRESS) == []
 
 
+def test_dictionary_street_without_context_not_masked() -> None:
+    assert _spans("Встречаемся у кинотеатра Победа 5 числа") == []
+    assert _spans("Садовая 12 соток, продаю дачу недорого") == []
+    assert _spans("Лесная 7 серия сериала вышла вчера") == []
+    assert _spans("Советская 2 группа детского сада уходит на карантин") == []
+    assert _spans("Центральная 1 линия метро закрыта") == []
+    assert _spans("Мира 99 процентов пользователей довольны") == []
+
+
+def test_dictionary_street_with_tail_context() -> None:
+    assert _spans("Оксана Королева +79031234567 Победы 81 подьезд 3") == [
+        "Победы",
+        "81",
+        "3",
+    ]
+
+
+def test_dictionary_street_with_address_context() -> None:
+    assert _spans("в заказе указан адрес Речная 63") == ["Речная", "63"]
+
+
+def test_dictionary_street_with_apartment_tail() -> None:
+    assert _spans("Доставка на Садовую 17, кв 4") == ["Садовую", "17", "4"]
+
+
 def test_module_in_settings() -> None:
     assert "pii_guard.recognizers.streets" in Settings().recognizer_modules
+
+
+def test_service_word_after_city_is_not_a_street() -> None:
+    assert "ВУ" not in _spans("адрес г. Казань, ВУ 77 12 345678")
