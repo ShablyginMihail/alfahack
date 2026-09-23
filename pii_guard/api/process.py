@@ -12,7 +12,7 @@ logger = get_logger("pii_guard.process")
 
 class ProcessRequest(BaseModel):
     payload: str
-    payload_id: str = Field(min_length=1, max_length=128)
+    payload_id: str = Field(min_length=1)
 
 
 class ProcessResponse(BaseModel):

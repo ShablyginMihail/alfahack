@@ -19,6 +19,9 @@ from tests.helpers import make_settings, write_config
 PROCESS_PATH = "/process"
 EMAIL = "ivanov@mail.ru"
 EMAIL_TEXT = "email ivanov@mail.ru"
+TEXT1 = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+TEXT2 = "Клиент Петрова Мария Сергеевна, телефон +7 916 123-45-67"
+NEW_ID = "id-new"
 
 
 def _settings(tmp_path) -> Settings:
@@ -133,6 +136,57 @@ async def test_changed_text_fragment_replaced(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_same_id_new_text_replaces_mask(tmp_path) -> None:
+    app = create_app(_full_settings(tmp_path))
+    async with _start_lifespan(app), await _client(app) as client:
+        text1 = TEXT1
+        text2 = TEXT2
+        r1 = await client.post(PROCESS_PATH, json={"payload": text1, "payload_id": NEW_ID})
+        masked1 = r1.json()["result"]
+        r2 = await client.post(PROCESS_PATH, json={"payload": text2, "payload_id": NEW_ID})
+        assert r2.status_code == 200
+        masked2 = r2.json()["result"]
+        assert masked2 != masked1
+        assert "Петрова Мария Сергеевна" not in masked2
+        assert "+7 916 123-45-67" not in masked2
+
+
+@pytest.mark.asyncio
+async def test_same_id_new_mask_unmask_roundtrip(tmp_path) -> None:
+    app = create_app(_full_settings(tmp_path))
+    async with _start_lifespan(app), await _client(app) as client:
+        text1 = TEXT1
+        text2 = TEXT2
+        await client.post(PROCESS_PATH, json={"payload": text1, "payload_id": NEW_ID})
+        r2 = await client.post(PROCESS_PATH, json={"payload": text2, "payload_id": NEW_ID})
+        masked2 = r2.json()["result"]
+        r3 = await client.post(PROCESS_PATH, json={"payload": masked2, "payload_id": NEW_ID})
+        assert r3.json()["result"] == text2
+
+
+@pytest.mark.asyncio
+async def test_same_id_repeat_original_same_mask(tmp_path) -> None:
+    app = create_app(_full_settings(tmp_path))
+    async with _start_lifespan(app), await _client(app) as client:
+        text1 = TEXT1
+        text2 = TEXT2
+        r1 = await client.post(PROCESS_PATH, json={"payload": text1, "payload_id": NEW_ID})
+        masked1 = r1.json()["result"]
+        await client.post(PROCESS_PATH, json={"payload": text2, "payload_id": NEW_ID})
+        r4 = await client.post(PROCESS_PATH, json={"payload": text1, "payload_id": NEW_ID})
+        assert r4.json()["result"] == masked1
+
+
+@pytest.mark.asyncio
+async def test_long_payload_id_accepted(tmp_path) -> None:
+    app = create_app(_settings(tmp_path))
+    async with _start_lifespan(app), await _client(app) as client:
+        long_id = "x" * 300
+        resp = await client.post(PROCESS_PATH, json={"payload": EMAIL_TEXT, "payload_id": long_id})
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_ready_memory_store(tmp_path) -> None:
     app = create_app(_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
@@ -166,7 +220,7 @@ async def test_process_service_two_workers_shared_redis(tmp_path) -> None:
 async def test_full_mask_roundtrip(tmp_path) -> None:
     app = create_app(_full_settings(tmp_path))
     async with _start_lifespan(app), await _client(app) as client:
-        text = "Клиент Иванов Иван Иванович, паспорт 4509 123456"
+        text = TEXT1
         resp = await client.post(PROCESS_PATH, json={"payload": text, "payload_id": "full-1"})
         assert resp.status_code == 200
         masked = resp.json()["result"]

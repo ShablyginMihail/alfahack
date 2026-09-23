@@ -24,6 +24,18 @@ def restore(masked_text: str, replacements: Sequence[Replacement]) -> str | None
     return "".join(parts)
 
 
+def contains_masked_fragments(text: str, replacements: Sequence[Replacement]) -> bool:
+    for replacement in replacements:
+        masked = replacement.masked
+        if not masked:
+            continue
+        if not any(ch.isalnum() for ch in masked):
+            continue
+        if masked in text:
+            return True
+    return False
+
+
 def replace_masked_fragments(text: str, replacements: Sequence[Replacement]) -> str:
     by_masked: dict[str, list[str]] = {}
     for replacement in replacements:

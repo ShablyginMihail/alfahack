@@ -58,6 +58,11 @@ class RedisStore:
                 return decode_record(self._cipher.decrypt(key, _as_bytes(existing)))
         return record
 
+    async def put(self, key: str, record: MappingRecord, ttl_seconds: int) -> None:
+        full_key = self._key(key)
+        blob = self._cipher.encrypt(key, encode_record(record))
+        await self._client.set(full_key, blob, ex=ttl_seconds)
+
     async def ping(self) -> bool:
         return bool(await self._client.ping())
 

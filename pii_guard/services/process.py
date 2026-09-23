@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 
 from pii_guard.config.loader import ConfigStore
-from pii_guard.core.demasking import unmask
+from pii_guard.core.demasking import contains_masked_fragments, unmask
 from pii_guard.core.engine import Engine
 from pii_guard.core.models import MappingRecord
 from pii_guard.core.policy import CHECKER_PROFILE, Profile
@@ -53,7 +53,10 @@ class ProcessService:
         if payload == record.masked_text:
             return await self._unmask(profile, record, payload, "unmask")
 
-        return await self._unmask(profile, record, payload, "unmask_changed")
+        if contains_masked_fragments(payload, record.replacements):
+            return await self._unmask(profile, record, payload, "unmask_changed")
+
+        return await self._mask(engine, profile, payload_id, payload, replace=True)
 
     async def _store_get(self, key: str) -> MappingRecord | None:
         start = time.perf_counter()
@@ -63,7 +66,7 @@ class ProcessService:
             observe_stage("store_get", time.perf_counter() - start)
 
     async def _mask(
-        self, engine: Engine, profile: Profile, payload_id: str, payload: str
+        self, engine: Engine, profile: Profile, payload_id: str, payload: str, replace: bool = False
     ) -> ProcessOutcome:
         start = time.perf_counter()
         masked = await asyncio.to_thread(engine.mask, payload, profile)
@@ -74,12 +77,16 @@ class ProcessService:
             replacements=masked.replacements,
         )
         start = time.perf_counter()
-        stored = await self._store.put_if_absent(payload_id, record, self._ttl_seconds)
+        if replace:
+            await self._store.put(payload_id, record, self._ttl_seconds)
+            stored = record
+        else:
+            stored = await self._store.put_if_absent(payload_id, record, self._ttl_seconds)
         observe_stage("store_put", time.perf_counter() - start)
         observe_entities("checker", self._counts(stored).items())
         return ProcessOutcome(
             result=stored.masked_text,
-            direction="mask",
+            direction="mask_replaced" if replace else "mask",
             type_counts=self._counts(stored),
         )
 

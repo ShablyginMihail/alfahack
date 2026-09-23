@@ -46,6 +46,9 @@ class FailoverStore:
     ) -> MappingRecord:
         return await self._run(lambda store: store.put_if_absent(key, record, ttl_seconds))
 
+    async def put(self, key: str, record: MappingRecord, ttl_seconds: int) -> None:
+        await self._run(lambda store: store.put(key, record, ttl_seconds))
+
     async def ping(self) -> bool:
         return await self._run(lambda store: store.ping())
 

@@ -41,13 +41,16 @@ class MemoryStore:
         existing = await self.get(key)
         if existing is not None:
             return existing
+        await self.put(key, record, ttl_seconds)
+        return record
+
+    async def put(self, key: str, record: MappingRecord, ttl_seconds: int) -> None:
         expires_at = self._clock() + ttl_seconds
         blob = self._cipher.encrypt(key, encode_record(record))
         self._items[key] = (expires_at, blob)
         self._items.move_to_end(key)
         while len(self._items) > self._max_items:
             self._items.popitem(last=False)
-        return record
 
     async def ping(self) -> bool:
         return True
