@@ -51,3 +51,23 @@ async def test_unknown_path_endpoint_other(tmp_path) -> None:
         assert metrics.status_code == 200
         body = metrics.text
         assert 'pii_requests_total{endpoint="other",status="404"}' in body
+
+
+def test_multiproc_metrics_single_occurrence(tmp_path, monkeypatch) -> None:
+    from prometheus_client import Counter, generate_latest
+
+    from pii_guard.observability.metrics import _build_registries
+
+    monkeypatch.setenv("PROMETHEUS_MULTIPROC_DIR", str(tmp_path))
+    served, metrics_registry = _build_registries()
+    assert served is not metrics_registry
+    Counter("test_counter", "test", registry=metrics_registry).inc()
+    assert b"test_counter" not in generate_latest(served)
+
+
+def test_multiproc_metrics_single_registry(monkeypatch) -> None:
+    from pii_guard.observability.metrics import _build_registries
+
+    monkeypatch.delenv("PROMETHEUS_MULTIPROC_DIR", raising=False)
+    served, metrics_registry = _build_registries()
+    assert served is metrics_registry

@@ -27,3 +27,6 @@ def on_starting(server) -> None:
 def child_exit(server, worker) -> None:
     multiprocess.mark_process_dead(worker.pid)
     server.log.info("worker %s exited", worker.pid)
+
+
+control_socket_disable = True

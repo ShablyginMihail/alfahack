@@ -99,21 +99,22 @@ class Metrics:
         )
 
 
-def _build_registry() -> CollectorRegistry:
+def _build_registries() -> tuple[CollectorRegistry, CollectorRegistry]:
     multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
     if multiproc_dir:
-        registry = CollectorRegistry()
-        multiprocess.MultiProcessCollector(registry)  # type: ignore[no-untyped-call]
-        return registry
-    return CollectorRegistry()
+        served = CollectorRegistry()
+        multiprocess.MultiProcessCollector(served)  # type: ignore[no-untyped-call]
+        return served, CollectorRegistry()
+    registry = CollectorRegistry()
+    return registry, registry
 
 
-_registry = _build_registry()
-metrics = Metrics(_registry)
+_served_registry, _metrics_registry = _build_registries()
+metrics = Metrics(_metrics_registry)
 
 
 def metrics_response() -> bytes:
-    return generate_latest(_registry)
+    return generate_latest(_served_registry)
 
 
 def observe_request(endpoint: str, status: int, duration_seconds: float) -> None:
