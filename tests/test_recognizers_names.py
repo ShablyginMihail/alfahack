@@ -249,3 +249,39 @@ def test_street_name_not_person() -> None:
 
 def test_client_baumann_person() -> None:
     assert _has_person("Клиент Бауман Иван")
+
+
+def test_context_foreign_name_vietnamese() -> None:
+    _span_at("Получатель перевода — Нгуен Ван Тхань", "Нгуен Ван Тхань", "PERSON")
+
+
+def test_context_foreign_name_korean() -> None:
+    _span_at("Звонила Ли Мин Хо, просила перезвонить", "Ли Мин Хо", "PERSON")
+
+
+def test_context_latin_name() -> None:
+    _span_at("Отправитель — John Smith, телефон +1 202 555 0143", "John Smith", "PERSON")
+
+
+def test_context_adjective_surname() -> None:
+    _span_at("Клиентка Белых Марина уточнила баланс", "Белых Марина", "PERSON")
+
+
+def test_context_bank_not_person() -> None:
+    assert not _has_person("Клиент Сбербанк Онлайн сообщил об ошибке")
+
+
+def test_context_department_not_person() -> None:
+    assert not _has_person("Менеджер Отдела Продаж перезвонит")
+
+
+def test_context_company_not_person() -> None:
+    assert not _has_person("Получатель ООО «Ромашка»")
+
+
+def test_context_city_not_person() -> None:
+    assert not _has_person("Клиент из Москвы спросил про вклад")
+
+
+def test_context_known_name_still_person() -> None:
+    assert _has_person("Клиент Иванов Иван Иванович")

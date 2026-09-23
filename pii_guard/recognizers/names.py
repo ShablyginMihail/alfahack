@@ -258,6 +258,59 @@ _LATIN_WORD_RE = re.compile(r"(?<!\w)[a-z]{2,}(?:['-][a-z]{2,})*(?!\w)")
 CARD_NUMBER_RE = re.compile(r"(?<!\d)(?:\d[\s-]?){12,18}\d(?!\d)")
 _LATIN_SURN_END = re.compile(r"(?:ov|ev|in|ova|eva|ina|sky|skaya)$")
 
+_CAP_WORD = r"[А-ЯЁA-Z][а-яёa-z]+(?:-[А-ЯЁA-Zа-яёa-z]+)*"
+_CANDIDATE_RE = re.compile(rf"(?<!\w)(?=((?:{_CAP_WORD}\s+){{1,2}}{_CAP_WORD})(?!\w))")
+
+_NAME_STOP_WORDS = frozenset(
+    {
+        "онлайн",
+        "мобайл",
+        "pay",
+        "visa",
+        "mastercard",
+        "мир",
+        "альфа",
+        "сбер",
+        "тинькофф",
+        "втб",
+    }
+)
+
+NAME_CONTEXT = compile_keywords(
+    [
+        "звонил",
+        "звонила",
+        "позвонил",
+        "позвонила",
+        "обратился",
+        "обратилась",
+        "менеджер",
+        "оператор",
+        "специалист",
+        "представитель",
+        "доверенное лицо",
+        "на имя",
+        "от имени",
+    ]
+)
+
+
+_NOT_NAME_POS = frozenset({"VERB", "INFN", "GRND", "PRTF", "PRTS", "ADVB", "NOUN", "ADJF", "COMP"})
+
+
+def _is_name_like(word: str) -> bool:
+    """Слово с заглавной буквы похоже на часть ФИО: латиница, неизвестно словарю,
+    имеет теги имени, фамилии, отчества или не имеет уверенного обычного разбора."""
+    if word.isascii():
+        return True
+    parses = parse_word(word.lower())
+    if any(tag in p.tag for p in parses if p.score >= 0.05 for tag in ("Name", "Surn", "Patr")):
+        return True
+    best = parses[0]
+    if not best.is_known:
+        return True
+    return best.score < 0.5 or best.tag.POS not in _NOT_NAME_POS
+
 
 def _latin_name_runs(text: str) -> list[tuple[int, int, list[str]]]:
     runs: list[tuple[int, int, list[str]]] = []
@@ -544,6 +597,7 @@ class NameRecognizer(Recognizer):
             self._apply_fallbacks(doc, tokens)
             spans.extend(self._combinations(doc, tokens))
         spans.extend(self._latin_names(doc))
+        spans.extend(self._context_candidates(doc))
         return spans
 
     def _clear_place_initials(self, doc: Document, tokens: list[_Token]) -> None:
@@ -885,6 +939,86 @@ class NameRecognizer(Recognizer):
             if "SURN" in token.roles:
                 return token.text
         return ""
+
+    def _context_candidates(self, doc: Document) -> list[Span]:
+        spans: list[Span] = []
+        covered_until = -1
+        for match in _CANDIDATE_RE.finditer(doc.text):
+            start, end = match.start(1), match.end(1)
+            if start < covered_until or self._candidate_at_sentence_start(doc, start):
+                continue
+            words = self._name_like_prefix(match.group(1).split())
+            if len(words) < 2:
+                continue
+            end = start + len(" ".join(words))
+            if doc.text[start:end] != " ".join(words):
+                continue
+            if self._is_context_person(doc, start, end, words):
+                spans.append(Span(start, end, "PERSON", 0.7, self.name))
+                covered_until = end
+        return spans
+
+    @staticmethod
+    def _name_like_prefix(words: list[str]) -> list[str]:
+        prefix: list[str] = []
+        for word in words:
+            if not _is_name_like(word):
+                break
+            prefix.append(word)
+        return prefix
+
+    def _is_context_person(self, doc: Document, start: int, end: int, words: list[str]) -> bool:
+        return (
+            self._has_personal_context(doc, start, end)
+            and not self._reject_candidate(words)
+            and not self._all_known_nouns_or_adjectives(words)
+            and not self._is_public_figure_candidate(words)
+        )
+
+    @staticmethod
+    def _candidate_at_sentence_start(doc: Document, start: int) -> bool:
+        left = start - 1
+        while left >= 0 and doc.text[left].isspace():
+            left -= 1
+        return left < 0 or doc.text[left] in ".!?"
+
+    def _has_personal_context(self, doc: Document, start: int, end: int) -> bool:
+        return (
+            find_keyword(doc, start, end, PERSONAL_CONTEXT, 30, "before") is not None
+            or find_keyword(doc, start, end, NAME_CONTEXT, 30, "before") is not None
+        )
+
+    def _reject_candidate(self, words: list[str]) -> bool:
+        for word in words:
+            w = word.lower()
+            if "банк" in w or w in _NAME_STOP_WORDS:
+                return True
+            if w in FUNCTION_WORDS:
+                return True
+            if self._likely_place_or_org(w):
+                return True
+        return False
+
+    @staticmethod
+    def _likely_place_or_org(lowered: str) -> bool:
+        if lowered in CITIES:
+            return True
+        parses = [p for p in parse_word(lowered) if p.score >= 0.1]
+        return any(p.normal_form in CITIES or "Geox" in p.tag or "Orgn" in p.tag for p in parses)
+
+    def _all_known_nouns_or_adjectives(self, words: list[str]) -> bool:
+        for word in words:
+            best = parse_word(word)[0]
+            if best.score < 0.5:
+                return False
+            if any(tag in best.tag for tag in ("Name", "Surn", "Patr")):
+                return False
+            if not any(tag in best.tag for tag in ("NOUN", "ADJF", "ADJS")):
+                return False
+        return True
+
+    def _is_public_figure_candidate(self, words: list[str]) -> bool:
+        return any(_word_variants(word) & PUBLIC_FIGURES for word in words)
 
 
 def recognizers() -> list[Recognizer]:
