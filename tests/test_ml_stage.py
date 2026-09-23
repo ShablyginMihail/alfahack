@@ -14,6 +14,7 @@ from tests.helpers import PARTIAL_PROFILE, write_config
 
 PERSON = "PERSON"
 ADDRESS = "ADDRESS"
+PHONE = "PHONE"
 FAKE_NER = "fake_ner"
 PERSON_TEXT = "Иванов Иван"
 OUTCOME_OK = "ok"
@@ -180,6 +181,20 @@ def test_voting_skipped_different_type() -> None:
     ml = MlStage(recognizer)
     result = ml.run(Document.from_text(PERSON_TEXT), [_span(0, 10, ADDRESS, 0.3)])
     assert result == [_span(0, 10, PERSON, 0.5)]
+
+
+def test_model_dropped_overlapping_rule_other_type() -> None:
+    recognizer = FakeNerRecognizer(spans=[_span(2, 11, ADDRESS, 0.7)])
+    ml = MlStage(recognizer)
+    result = ml.run(Document.from_text(PERSON_TEXT), [_span(0, 11, PHONE, 0.6)])
+    assert result == []
+
+
+def test_model_kept_not_overlapping_rule_other_type() -> None:
+    recognizer = FakeNerRecognizer(spans=[_span(12, 22, ADDRESS, 0.7)])
+    ml = MlStage(recognizer)
+    result = ml.run(Document.from_text(PERSON_TEXT + " " + PERSON_TEXT), [_span(0, 11, PHONE, 0.6)])
+    assert result == [_span(12, 22, ADDRESS, 0.7)]
 
 
 def test_profile_ner_false_does_not_call_model() -> None:

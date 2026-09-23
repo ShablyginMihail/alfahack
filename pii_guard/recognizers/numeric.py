@@ -50,6 +50,8 @@ INN_RUN_RE = re.compile(r"(?<!\d)(?:\d{10}|\d{12})(?!\d)")
 INN_SEPARATED_RE = re.compile(r"(?<!\d)\d{2,4}[\s-]\d{2,4}[\s-]\d{2,6}(?!\d)")
 CVV_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{3,4}(?![\s-]\d)(?!\d)")
 PIN_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{4,6}(?![\s-]\d)(?!\d)")
+CVV_CODE_RE = re.compile(r"(?<!\w)код\s*:?\s*(\d{3})(?!\d)")
+CVV_CODE_PREFIX_RE = re.compile(r"(?<!\w)код\s*:?\s*$")
 
 PHONE_CONTEXT = compile_keywords(
     ["тел", "телефон", "моб", "мобил", "звон", "whatsapp", "telegram", "контакт"]
@@ -91,6 +93,14 @@ CVV_CONTEXT = compile_keywords(
         "cvc-код",
         "код cvv",
         "код cvc",
+        "цвс",
+        "цвв",
+        "свв",
+        "свс",
+        "обратной стороны",
+        "оборотной стороны",
+        "стороны карты",
+        "стороне карты",
     ]
 )
 PIN_CONTEXT = compile_keywords(["пин", "pin", "пинкод", "pin code"])
@@ -238,6 +248,16 @@ def _cvv_pin_rules() -> Sequence[PatternRule]:
             context_direction="before",
         ),
         PatternRule(
+            "CVV",
+            CVV_CODE_RE,
+            0.1,
+            group=1,
+            context=CVV_CONTEXT,
+            context_bonus=0.65,
+            context_window=40,
+            context_direction="after",
+        ),
+        PatternRule(
             "PIN",
             PIN_RE,
             0.1,
@@ -260,7 +280,13 @@ def _cvv_pin_rules() -> Sequence[PatternRule]:
 
 def _nearest_card_secret(doc: Document, start: int, end: int) -> str:
     """CVV или PIN — по ключевому слову, стоящему ближе к числу."""
-    cvv_dist = find_keyword(doc, start, end, CVV_CONTEXT, 25, "before")
+    cvv_dists = [
+        d for d in (find_keyword(doc, start, end, CVV_CONTEXT, 25, "before"),) if d is not None
+    ]
+    if CVV_CODE_PREFIX_RE.search(doc.norm, max(0, start - 10), start):
+        after = find_keyword(doc, start, end, CVV_CONTEXT, 40, "after")
+        if after is not None:
+            cvv_dists.append(after)
     pin_dists = [
         d
         for d in (
@@ -269,7 +295,7 @@ def _nearest_card_secret(doc: Document, start: int, end: int) -> str:
         )
         if d is not None
     ]
-    if cvv_dist is not None and (not pin_dists or cvv_dist <= min(pin_dists)):
+    if cvv_dists and (not pin_dists or min(cvv_dists) <= min(pin_dists)):
         return "CVV"
     return "PIN"
 

@@ -74,6 +74,15 @@ def test_address_number_continuation() -> None:
     assert parts == ["Екатеринбург", "Малышева", "36-7"]
 
 
+def test_address_phone_excluded() -> None:
+    text = "Заказ так и не привезли: Сергей Новиков, 89123456789, ул. Советская 42 кв.17"
+    start = text.index("89123456789") + 6
+    end = text.index("17") + len("17")
+    spans = _spans(text, [NerEntity(start, end, ADDRESS, 0.9)])
+    parts = [text[span.start : span.end] for span in spans]
+    assert parts == ["Советская", "42", "17"]
+
+
 def test_bank_branch_no_span() -> None:
     text = "Офис банка находится по адресу ул. Тверская, д. 5"
     start = text.index("ул.")

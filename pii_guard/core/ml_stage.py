@@ -105,6 +105,11 @@ class MlStage:
     def _vote(self, spans: list[Span], rule_candidates: Sequence[Span]) -> list[Span]:
         result: list[Span] = []
         for span in spans:
+            if any(
+                cand.pii_type != span.pii_type and cand.score >= 0.5 and self._overlaps(span, cand)
+                for cand in rule_candidates
+            ):
+                continue
             score = span.score
             for cand in rule_candidates:
                 if (

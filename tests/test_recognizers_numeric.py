@@ -329,3 +329,27 @@ def test_card_spaced_valid_luhn_found() -> None:
 def test_card_spaced_invalid_luhn_not_found() -> None:
     number = "4 2 7 6 3 8 0 1 2 3 4 5 6 7 8 9"
     assert "CARD_NUMBER" not in _types(f"перевод {number}")
+
+
+def test_cvv_tsvs() -> None:
+    _span_at("я же только что вводил цвс 774", "774", "CVV")
+
+
+def test_cvv_tsvs_after_word() -> None:
+    _span_at("оплата не проходит, хотя цвс правильный 673", "673", "CVV")
+
+
+def test_cvv_code_back_of_card() -> None:
+    _span_at("Сейчас скажу код с обратной стороны карты, это 472", "472", "CVV")
+
+
+def test_cvv_code_with_cvc_after() -> None:
+    _span_at("система не принимает код 789? Я точно ввожу правильный CVC", "789", "CVV")
+
+
+def test_cvv_code_confirmation_not_cvv() -> None:
+    assert "CVV" not in _types("код подтверждения 789 из смс")
+
+
+def test_cvv_order_number_not_cvv() -> None:
+    assert "CVV" not in _types(f"заказ {CVV_VALUE} оплатил картой")

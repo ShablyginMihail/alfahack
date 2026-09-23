@@ -116,6 +116,7 @@ class NerRecognizer:
     def _address_spans(self, doc: Document, start: int, end: int, confidence: float) -> list[Span]:
         if is_bank_branch(doc, start):
             return []
+        start, end = self._expand_words(doc.text, start, end)
         end = self._extend_number(doc.text, end)
         has_digit = any(ch.isdigit() for ch in doc.text[start:end])
         context_bonus = (
@@ -149,7 +150,10 @@ class NerRecognizer:
     def _split_address(text: str, start: int, end: int) -> list[tuple[int, int]]:
         parts: list[tuple[int, int]] = []
         for m in _ADDR_TOKEN_RE.finditer(text, start, end):
-            if normalize(m.group(0)) in SERVICE_WORDS:
+            token = m.group(0)
+            if normalize(token) in SERVICE_WORDS:
+                continue
+            if token.isdigit() and len(token) >= 7:
                 continue
             parts.append((m.start(), m.end()))
         return parts
