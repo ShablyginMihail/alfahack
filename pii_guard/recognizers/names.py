@@ -282,6 +282,17 @@ def _latin_name_runs(text: str) -> list[tuple[int, int, list[str]]]:
     return runs
 
 
+_STREET_MARKER_RE = re.compile(
+    r"(?<!\w)(?:ул\.|ул|улиц\w*|пр-т|просп\.|проспект\w*|пер\.|переул\w*|б-р|бульвар\w*|"
+    r"наб\.|набережн\w*|пл\.|площад\w*|ш\.|шоссе|проезд\w*|алле\w*|тупик\w*)\s*$"
+)
+_STREET_MARKER_WINDOW = 16
+
+
+def _after_street_marker(norm: str, start: int) -> bool:
+    return _STREET_MARKER_RE.search(norm, max(0, start - _STREET_MARKER_WINDOW), start) is not None
+
+
 CARDHOLDER_CONTEXT = compile_keywords(
     [
         "держател",
@@ -584,13 +595,19 @@ class NameRecognizer(Recognizer):
                         spans.append(
                             Span(span.start, span.end, "CARDHOLDER", span.score, self.name)
                         )
-                    elif not self._is_quoted_title(doc, span):
+                    elif not self._is_quoted_title(doc, span) and not _after_street_marker(
+                        doc.norm, span.start
+                    ):
                         spans.append(span)
                 i = end
                 continue
             token = tokens[i]
             single = self._single_token_person(doc, token)
-            if single is not None and not self._is_quoted_title(doc, single):
+            if (
+                single is not None
+                and not self._is_quoted_title(doc, single)
+                and not _after_street_marker(doc.norm, single.start)
+            ):
                 spans.append(single)
             i += 1
         return spans

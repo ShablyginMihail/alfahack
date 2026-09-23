@@ -146,6 +146,26 @@ def test_bank_branch_address_not_masked_full() -> None:
     assert _mask_full(text) == text
 
 
+def test_bank_office_alpha_not_masked() -> None:
+    text = "Офис Альфа-Банка по адресу г. Москва, ул. Каланчёвская, д. 27"
+    assert _mask(text) == text
+
+
+def test_atm_sberbank_not_masked() -> None:
+    text = "Банкомат Сбербанка: г. Казань, ул. Баумана, д. 10"
+    assert _mask(text) == text
+
+
+def test_bank_office_residence_masked() -> None:
+    text = "Перевести в отделение по месту жительства: г. Москва, ул. Ленина, д. 5"
+    assert _mask(text) != text
+
+
+def test_bank_employee_address_masked() -> None:
+    text = "Сотрудник банка Иванов живёт по адресу г. Москва, ул. Ленина, д. 5"
+    assert "Ленина" not in _mask(text)
+
+
 def test_moscow_capital_not_masked_full() -> None:
     assert _mask_full("Москва — столица России") == "Москва — столица России"
 

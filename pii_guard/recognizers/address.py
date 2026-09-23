@@ -101,15 +101,25 @@ BANK_CONTEXT = compile_keywords(
         "мы находимся",
     ]
 )
+BANK_OFFICE_RE = re.compile(
+    r"(?<!\w)офис\w*(?:\s+[а-яё-]+){0,2}\s+"
+    r"(?:[а-яё-]*банк[а-яё-]*|втб|тинькофф|райффайзен)(?!\w)"
+)
 BANK_EXCEPTION = compile_keywords(
     [
-        "проживает",
+        "прожива",
         "прописан",
         "зарегистрирован",
         "адрес регистрации",
         "адрес проживания",
         "мой адрес",
         "клиент",
+        "жительств",
+        "живет",
+        "живу",
+        "доставк",
+        "регистрац",
+        "прописк",
     ]
 )
 
@@ -373,7 +383,12 @@ class AddressRecognizer(Recognizer):
         return re.search(r"(?:почтовый\s+)?индекс\s*:?\s*$", before) is not None
 
     def _is_bank_branch(self, doc: Document, start: int) -> bool:
-        if find_keyword(doc, start, start, BANK_CONTEXT, 60, "before") is None:
+        before = doc.norm[max(0, start - 60) : start]
+        has_bank_context = (
+            find_keyword(doc, start, start, BANK_CONTEXT, 60, "before") is not None
+            or BANK_OFFICE_RE.search(before) is not None
+        )
+        if not has_bank_context:
             return False
         return find_keyword(doc, start, start, BANK_EXCEPTION, 60, "before") is None
 

@@ -240,3 +240,12 @@ def test_moscow_capital_not_person() -> None:
 
 def test_address_abbreviation_not_initial() -> None:
     assert not _has_person("г. Бийск, ш. Космонавтов, д. 69")
+
+
+def test_street_name_not_person() -> None:
+    assert not _has_person("ул. Баумана")
+    assert not _has_person("проспект Вернадского")
+
+
+def test_client_baumann_person() -> None:
+    assert _has_person("Клиент Бауман Иван")
