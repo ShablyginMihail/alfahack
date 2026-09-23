@@ -12,6 +12,7 @@ from pii_guard.core.normalize import Document
 from pii_guard.core.policy import Profile, apply_rules
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.service_words import SERVICE_WORDS
+from pii_guard.observability.metrics import observe_recognizer_failure
 
 logger = structlog.get_logger()
 
@@ -19,6 +20,12 @@ WHOLE_PAYLOAD_MAX_CHARS = 120
 WHOLE_PAYLOAD_MIN_SCORE = 0.2
 
 _WORD_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*")
+
+
+class DetectionUnavailable(Exception):
+    def __init__(self, recognizer: str) -> None:
+        super().__init__(f"recognizer failed: {recognizer}")
+        self.recognizer = recognizer
 
 
 def _span_in_bounds(span: Span, text: str, profile: Profile) -> bool:
@@ -81,11 +88,11 @@ class Engine:
         self._masker = masker
         self._priorities = priorities
 
-    def analyze(self, text: str, profile: Profile) -> list[Span]:
+    def analyze(self, text: str, profile: Profile, fail_closed: bool = False) -> list[Span]:
         if not text:
             return []
         doc = Document.from_text(text)
-        candidates = self._collect_candidates(doc, profile)
+        candidates = self._collect_candidates(doc, profile, fail_closed)
 
         threshold = profile.threshold_for
         filtered = [
@@ -102,18 +109,21 @@ class Engine:
         resolved = resolve_overlaps(filtered, self._priorities)
         return apply_rules(resolved, profile.rules)
 
-    def _collect_candidates(self, doc: Document, profile: Profile) -> list[Span]:
+    def _collect_candidates(self, doc: Document, profile: Profile, fail_closed: bool) -> list[Span]:
         candidates: list[Span] = []
         for recognizer in self._registry.for_types(profile.pii_types):
             found: list[Span] = []
             try:
                 found.extend(recognizer.find(doc))
             except Exception as exc:
+                observe_recognizer_failure(recognizer.name)
                 logger.warning(
                     "recognizer_failed",
                     recognizer=recognizer.name,
                     error_type=type(exc).__name__,
                 )
+                if fail_closed:
+                    raise DetectionUnavailable(recognizer.name) from exc
                 continue
             candidates.extend(found)
         return candidates
@@ -164,8 +174,8 @@ class Engine:
             return True
         return all(word in SERVICE_WORDS for word in words)
 
-    def mask(self, text: str, profile: Profile) -> MaskResult:
-        spans = self.analyze(text, profile)
+    def mask(self, text: str, profile: Profile, fail_closed: bool = False) -> MaskResult:
+        spans = self.analyze(text, profile, fail_closed)
         return self._masker.apply(text, spans, profile)
 
     def mask_spans(self, text: str, spans: Sequence[Span], profile: Profile) -> MaskResult:

@@ -74,6 +74,12 @@ class Metrics:
             ("pii_type", "system"),
             registry=registry,
         )
+        self.recognizer_failures_total = Counter(
+            "pii_recognizer_failures_total",
+            "Number of recognizer failures by recognizer",
+            ("recognizer",),
+            registry=registry,
+        )
         self.store_degraded = Gauge(
             "pii_store_degraded",
             "1 if the store is in degraded (redis-degraded) mode",
@@ -114,6 +120,10 @@ def observe_tokens(endpoint: str, text: str) -> None:
 def observe_entities(system: str, counts: Iterable[tuple[str, int]]) -> None:
     for pii_type, count in counts:
         metrics.entities_total.labels(pii_type=pii_type, system=system).inc(count)
+
+
+def observe_recognizer_failure(recognizer: str) -> None:
+    metrics.recognizer_failures_total.labels(recognizer=recognizer).inc()
 
 
 def set_store_degraded(degraded: bool) -> None:

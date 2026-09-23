@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
-from pii_guard.core.engine import Engine, resolve_overlaps
+import pytest
+
+from pii_guard.core.engine import DetectionUnavailable, Engine, resolve_overlaps
 from pii_guard.core.masking import DefaultMasker
 from pii_guard.core.models import MaskResult, Replacement, Span
 from pii_guard.core.normalize import Document
@@ -170,6 +172,36 @@ def test_analyze_rule_pin_requires_card() -> None:
     assert {span.pii_type for span in result} == {"PIN", "CARD_NUMBER"}
 
 
+def test_rule_pin_kept_near_card() -> None:
+    rule = CombinationRule("PIN", frozenset({"CARD_NUMBER"}), window=300)
+    profile = Profile(name="p", rules=(rule,))
+    registry = _registry(
+        FakeRecognizer(
+            "r",
+            frozenset({"PIN", "CARD_NUMBER"}),
+            [_span(0, 4, "PIN", 0.9), _span(10, 20, "CARD_NUMBER", 0.9)],
+        )
+    )
+    engine = Engine(registry, LabelMasker())
+    result = engine.analyze("1234 56789 0123456789", profile)
+    assert {span.pii_type for span in result} == {"PIN", "CARD_NUMBER"}
+
+
+def test_rule_pin_removed_far_from_card() -> None:
+    rule = CombinationRule("PIN", frozenset({"CARD_NUMBER"}), window=300)
+    profile = Profile(name="p", rules=(rule,))
+    registry = _registry(
+        FakeRecognizer(
+            "r",
+            frozenset({"PIN", "CARD_NUMBER"}),
+            [_span(0, 4, "PIN", 0.9), _span(1000, 1010, "CARD_NUMBER", 0.9)],
+        )
+    )
+    engine = Engine(registry, LabelMasker())
+    result = engine.analyze("x" * 1010, profile)
+    assert [s.pii_type for s in result] == ["CARD_NUMBER"]
+
+
 def test_analyze_drops_out_of_bounds_spans() -> None:
     registry = _registry(FakeRecognizer("r", frozenset({"PHONE"}), [_span(0, 50, "PHONE", 0.9)]))
     engine = Engine(registry, LabelMasker())
@@ -184,6 +216,23 @@ def test_analyze_failing_recognizer_does_not_break() -> None:
     engine = Engine(registry, LabelMasker())
     result = engine.analyze("12345", PARTIAL_PROFILE)
     assert result == [_span(0, 5, "PHONE", 0.9)]
+
+
+def test_analyze_fail_closed_raises() -> None:
+    registry = _registry(
+        FailingRecognizer(),
+        FakeRecognizer("ok", frozenset({"PHONE"}), [_span(0, 5, "PHONE", 0.9)]),
+    )
+    engine = Engine(registry, LabelMasker())
+    with pytest.raises(DetectionUnavailable):
+        engine.analyze("12345", PARTIAL_PROFILE, fail_closed=True)
+
+
+def test_mask_fail_closed_raises() -> None:
+    registry = _registry(FailingRecognizer())
+    engine = Engine(registry, LabelMasker())
+    with pytest.raises(DetectionUnavailable):
+        engine.mask("12345", PARTIAL_PROFILE, fail_closed=True)
 
 
 def test_analyze_generator_recognizer_failure_discards_partial_spans() -> None:

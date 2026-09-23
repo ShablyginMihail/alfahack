@@ -9,7 +9,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from pii_guard.api.errors import detection_unavailable_error
 from pii_guard.core.demasking import masked_regions, replace_masked_fragments
+from pii_guard.core.engine import DetectionUnavailable, Engine
 from pii_guard.core.models import Replacement
 from pii_guard.core.policy import Profile
 from pii_guard.llm.client import LLMError, MockLLM
@@ -43,6 +45,59 @@ def _type_counts(replacements: list[Replacement]) -> dict[str, int]:
     return counts
 
 
+async def _mask_messages(
+    engine: Engine, req: ChatRequest, profile: Profile
+) -> tuple[list[dict[str, str]], list[Replacement], str]:
+    contents = [m.content for m in req.messages]
+    joined = SEP.join(contents)
+    if any(_SEP_CHAR in content for content in contents):
+        masked_messages: list[dict[str, str]] = []
+        replacements: list[Replacement] = []
+        for message in req.messages:
+            result = await asyncio.to_thread(engine.mask, message.content, profile, True)
+            masked_messages.append({"role": message.role, "content": result.text})
+            replacements.extend(result.replacements)
+    else:
+        result = await asyncio.to_thread(engine.mask, joined, profile, True)
+        masked_contents = result.text.split(SEP)
+        masked_messages = [
+            {"role": message.role, "content": content}
+            for message, content in zip(req.messages, masked_contents, strict=True)
+        ]
+        replacements = list(result.replacements)
+    return masked_messages, replacements, joined
+
+
+async def _recheck(
+    engine: Engine,
+    masked_messages: list[dict[str, str]],
+    replacements: list[Replacement],
+    profile: Profile,
+) -> tuple[list[dict[str, str]], list[Replacement], int]:
+    masked_joined = SEP.join(message["content"] for message in masked_messages)
+    strict_profile = dataclasses.replace(profile, strict=True)
+    recheck_spans = await asyncio.to_thread(engine.analyze, masked_joined, strict_profile, True)
+    if profile.mask_style == "synthetic":
+        regions = masked_regions(masked_joined, replacements)
+        recheck_spans = [
+            span
+            for span in recheck_spans
+            if not any(span.start < end and start < span.end for start, end in regions)
+        ]
+    recheck_masked = len(recheck_spans)
+    if recheck_spans:
+        recheck_result = await asyncio.to_thread(
+            engine.mask_spans, masked_joined, recheck_spans, strict_profile
+        )
+        rechecked_contents = recheck_result.text.split(SEP)
+        masked_messages = [
+            {"role": message["role"], "content": content}
+            for message, content in zip(masked_messages, rechecked_contents, strict=True)
+        ]
+        replacements.extend(recheck_result.replacements)
+    return masked_messages, replacements, recheck_masked
+
+
 @router.post("/v1/chat/completions")
 async def chat_completions(
     req: ChatRequest,
@@ -69,48 +124,16 @@ async def chat_completions(
         llm_client = request.app.state.llm_client
 
         start = time.perf_counter()
-        contents = [m.content for m in req.messages]
-        joined = SEP.join(contents)
-        if any(_SEP_CHAR in content for content in contents):
-            masked_messages: list[dict[str, str]] = []
-            replacements: list[Replacement] = []
-            for message in req.messages:
-                result = await asyncio.to_thread(engine.mask, message.content, profile)
-                masked_messages.append({"role": message.role, "content": result.text})
-                replacements.extend(result.replacements)
-        else:
-            result = await asyncio.to_thread(engine.mask, joined, profile)
-            masked_contents = result.text.split(SEP)
-            masked_messages = [
-                {"role": message.role, "content": content}
-                for message, content in zip(req.messages, masked_contents, strict=True)
-            ]
-            replacements = list(result.replacements)
+        try:
+            masked_messages, replacements, joined = await _mask_messages(engine, req, profile)
+            masked_messages, replacements, recheck_masked = await _recheck(
+                engine, masked_messages, replacements, profile
+            )
+        except DetectionUnavailable:
+            raise detection_unavailable_error(settings.retry_after_seconds) from None
         duration_ms = (time.perf_counter() - start) * 1000
         observe_stage("detect_mask", duration_ms / 1000)
         observe_tokens("/v1/chat/completions", joined)
-
-        masked_joined = SEP.join(message["content"] for message in masked_messages)
-        strict_profile = dataclasses.replace(profile, strict=True)
-        recheck_spans = await asyncio.to_thread(engine.analyze, masked_joined, strict_profile)
-        if profile.mask_style == "synthetic":
-            regions = masked_regions(masked_joined, replacements)
-            recheck_spans = [
-                span
-                for span in recheck_spans
-                if not any(span.start < end and start < span.end for start, end in regions)
-            ]
-        recheck_masked = len(recheck_spans)
-        if recheck_spans:
-            recheck_result = await asyncio.to_thread(
-                engine.mask_spans, masked_joined, recheck_spans, strict_profile
-            )
-            rechecked_contents = recheck_result.text.split(SEP)
-            masked_messages = [
-                {"role": message["role"], "content": content}
-                for message, content in zip(masked_messages, rechecked_contents, strict=True)
-            ]
-            replacements.extend(recheck_result.replacements)
 
         llm_name = llm_client.name
         start = time.perf_counter()
@@ -124,7 +147,10 @@ async def chat_completions(
 
         llm_answer_masked = answer
         if profile.unmask:
-            answer = await asyncio.to_thread(replace_masked_fragments, answer, replacements)
+            unmask_replacements = [
+                r for r in replacements if r.pii_type not in profile.irreversible
+            ]
+            answer = await asyncio.to_thread(replace_masked_fragments, answer, unmask_replacements)
 
         entities = _type_counts(replacements)
         observe_entities(name, entities.items())

@@ -273,3 +273,12 @@ async def test_process_overloaded_by_weight_returns_429(tmp_path) -> None:
         gate.exit(weight=10)
         resp2 = await client.post(PROCESS_PATH, json={"payload": EMAIL_TEXT, "payload_id": "id-8"})
         assert resp2.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_process_fail_open_with_failing_recognizer(tmp_path) -> None:
+    settings = make_settings(tmp_path, recognizer_modules=["tests.fake_failing_recognizers"])
+    app = create_app(settings)
+    async with _start_lifespan(app), await _client(app) as client:
+        resp = await client.post(PROCESS_PATH, json={"payload": EMAIL_TEXT, "payload_id": "id-9"})
+        assert resp.status_code == 200

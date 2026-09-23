@@ -38,5 +38,13 @@ class FakeRecognizer:
         return spans
 
 
+class FailingRecognizer:
+    name = "failing"
+    pii_types = frozenset({"EMAIL"})
+
+    def find(self, doc: Document) -> list[Span]:
+        raise RuntimeError("boom")
+
+
 def recognizers() -> list[FakeRecognizer]:
     return [FakeRecognizer()]

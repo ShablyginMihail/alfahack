@@ -7,7 +7,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from pii_guard.api.errors import detection_unavailable_error
 from pii_guard.core.demasking import unmask
+from pii_guard.core.engine import DetectionUnavailable
 from pii_guard.core.models import MappingRecord
 from pii_guard.core.policy import Profile
 from pii_guard.observability.logging import get_logger
@@ -68,7 +70,10 @@ async def mask(
         cipher = request.app.state.cipher
 
         start = time.perf_counter()
-        result = await asyncio.to_thread(engine.mask, req.text, profile)
+        try:
+            result = await asyncio.to_thread(engine.mask, req.text, profile, True)
+        except DetectionUnavailable:
+            raise detection_unavailable_error(settings.retry_after_seconds) from None
         duration_ms = (time.perf_counter() - start) * 1000
         observe_stage("detect_mask", duration_ms / 1000)
         observe_tokens("/api/v1/mask", req.text)
@@ -77,7 +82,9 @@ async def mask(
         record = MappingRecord(
             original_fp=cipher.fingerprint(req.text),
             masked_text=result.text,
-            replacements=result.replacements,
+            replacements=tuple(
+                r for r in result.replacements if r.pii_type not in profile.irreversible
+            ),
         )
         start = time.perf_counter()
         await store.put_if_absent(

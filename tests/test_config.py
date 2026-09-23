@@ -205,6 +205,40 @@ def test_marketing_bot_pin_rule(tmp_path: Path) -> None:
     assert any(s.pii_type == "PIN" for s in spans2)
 
 
+def test_rule_window_from_yaml(tmp_path: Path) -> None:
+    _write_systems(
+        tmp_path,
+        {
+            "defaults": {"mask_style": "partial"},
+            "systems": {
+                "marketing-bot": {
+                    "pii_types": ["PERSON", "PHONE", "EMAIL", "CARD_NUMBER", "PIN"],
+                    "mask_style": "label",
+                    "rules": [{"type": "PIN", "requires_any": ["CARD_NUMBER"], "window": 50}],
+                }
+            },
+        },
+    )
+    _write_pii_types(tmp_path, _minimal_pii_types())
+    config = load_config(tmp_path)
+    rule = config.profiles()["marketing-bot"].rules[0]
+    assert rule.window == 50
+
+
+def test_irreversible_types_unknown_error(tmp_path: Path) -> None:
+    _write_systems(
+        tmp_path,
+        {
+            "defaults": {"mask_style": "partial"},
+            "systems": {"checker": {"pii_types": "all", "irreversible_types": ["UNKNOWN_TYPE"]}},
+        },
+    )
+    _write_pii_types(tmp_path, _minimal_pii_types())
+    config = load_config(tmp_path)
+    with pytest.raises(ValueError):
+        config.profiles()
+
+
 def test_reload_picks_up_changes(tmp_path: Path) -> None:
     _write_systems(
         tmp_path,

@@ -60,6 +60,8 @@ class AppConfig:
         if system.pii_types != "all":
             for pii_type in system.pii_types:
                 self._check_type(name, pii_type, valid, "")
+        for pii_type in system.irreversible_types:
+            self._check_type(name, pii_type, valid, " в irreversible_types")
         for rule in system.rules:
             self._check_type(name, rule.type, valid, " в правиле")
             for req in rule.requires_any:
@@ -73,7 +75,8 @@ class AppConfig:
     def _profile_for(self, name: str, system: SystemConfigModel) -> Profile:
         pii_types = None if system.pii_types == "all" else frozenset(system.pii_types)
         rules = tuple(
-            CombinationRule(rule.type, frozenset(rule.requires_any)) for rule in system.rules
+            CombinationRule(rule.type, frozenset(rule.requires_any), rule.window)
+            for rule in system.rules
         )
         return Profile(
             name=name,
@@ -82,6 +85,7 @@ class AppConfig:
             unmask=system.unmask,
             strict=system.strict,
             rules=rules,
+            irreversible=frozenset(system.irreversible_types),
         )
 
     def system_for_key(self, api_key: str) -> tuple[str, SystemConfigModel] | None:

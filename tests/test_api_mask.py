@@ -15,8 +15,10 @@ TOKEN_KEY = secrets.token_urlsafe(16)
 LABEL_KEY = secrets.token_urlsafe(16)
 OTHER_TOKEN_KEY = secrets.token_urlsafe(16)
 DISABLED_KEY = secrets.token_urlsafe(16)
+IRREVERSIBLE_KEY = secrets.token_urlsafe(16)
 ADMIN_TOKEN = "admin-secret"
 
+EMAIL_VALUE = "ivanov@mail.ru"
 EMAIL_TEXT = "email ivanov@mail.ru"
 EMAIL_PASSPORT_TEXT = "email ivanov@mail.ru, паспорт 4509 123456"
 ADMIN_CONFIG_PATH = "/admin/config"
@@ -59,6 +61,14 @@ def _systems_config() -> dict:
                 "unmask": True,
                 "api_key_sha256": _sha(OTHER_TOKEN_KEY),
             },
+            "irreversible-sys": {
+                "enabled": True,
+                "pii_types": "all",
+                "mask_style": "partial",
+                "unmask": True,
+                "irreversible_types": ["PASSPORT"],
+                "api_key_sha256": _sha(IRREVERSIBLE_KEY),
+            },
             "disabled-sys": {
                 "enabled": False,
                 "pii_types": "all",
@@ -96,7 +106,7 @@ async def test_token_roundtrip(tmp_path) -> None:
         assert resp.status_code == 200
         body = resp.json()
         masked = body["masked_text"]
-        assert "ivanov@mail.ru" not in masked
+        assert EMAIL_VALUE not in masked
         assert "4509 123456" not in masked
         assert "[EMAIL_1]" in masked
         assert "[ПАСПОРТ_1]" in masked
@@ -250,7 +260,7 @@ async def test_process_with_checker_profile(tmp_path) -> None:
         resp = await client.post("/process", json={"payload": text, "payload_id": "p-1"})
         assert resp.status_code == 200
         masked = resp.json()["result"]
-        assert "ivanov@mail.ru" not in masked
+        assert EMAIL_VALUE not in masked
         assert "4509 123456" not in masked
 
         resp2 = await client.post("/process", json={"payload": masked, "payload_id": "p-1"})
@@ -312,3 +322,48 @@ async def test_unmask_overloaded_returns_429(tmp_path) -> None:
             headers={"X-API-Key": TOKEN_KEY},
         )
         assert resp2.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_irreversible_types_stay_masked(tmp_path) -> None:
+    settings = _settings(tmp_path)
+    async with _client_for(settings) as client:
+        headers = {"X-API-Key": IRREVERSIBLE_KEY}
+        text = EMAIL_PASSPORT_TEXT
+        resp = await client.post(MASK_PATH, json={"text": text}, headers=headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        masked = body["masked_text"]
+        assert EMAIL_VALUE not in masked
+        assert "4509 123456" not in masked
+        assert any(e["type"] == "PASSPORT" for e in body["entities"])
+
+        unmask = await client.post(
+            UNMASK_PATH,
+            json={"session_id": body["session_id"], "text": masked},
+            headers=headers,
+        )
+        assert unmask.status_code == 200
+        result = unmask.json()["text"]
+        assert EMAIL_VALUE in result
+        assert "4509 123456" not in result
+
+
+@pytest.mark.asyncio
+async def test_mask_detection_unavailable_returns_503(tmp_path) -> None:
+    settings = make_settings(tmp_path, recognizer_modules=["tests.fake_failing_recognizers"])
+    write_config(settings.config_dir, systems=_systems_config())
+    app = create_app(settings)
+    transport = ASGITransport(app=app)
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=transport, base_url=TEST_BASE_URL) as client,
+    ):
+        resp = await client.post(
+            MASK_PATH,
+            json={"text": EMAIL_TEXT},
+            headers={"X-API-Key": TOKEN_KEY},
+        )
+        assert resp.status_code == 503
+        assert resp.json() == {"error": "detection_unavailable"}
+        assert resp.headers["retry-after"] == "1"

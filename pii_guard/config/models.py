@@ -62,6 +62,14 @@ class PiiTypesConfig(BaseModel):
 class SystemRuleModel(BaseModel):
     type: str
     requires_any: list[str] = Field(default_factory=list)
+    window: int = 300
+
+    @field_validator("window")
+    @classmethod
+    def _valid_window(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("window должен быть больше 0")
+        return value
 
 
 class SystemConfigModel(BaseModel):
@@ -72,6 +80,7 @@ class SystemConfigModel(BaseModel):
     strict: bool = False
     api_key_sha256: str | None = None
     rules: list[SystemRuleModel] = Field(default_factory=list)
+    irreversible_types: list[str] = Field(default_factory=list)
 
     @field_validator("mask_style")
     @classmethod

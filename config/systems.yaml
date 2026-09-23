@@ -13,6 +13,7 @@ systems:
     pii_types: all
     mask_style: token
     strict: true
+    irreversible_types: [CVV, PIN]
     api_key_sha256: 373b3d31a9ea533e96852d611bd738c51fe91aad00ff5f2a107dc082047919d3
   marketing-bot:
     enabled: true
@@ -27,11 +28,13 @@ systems:
     enabled: true
     pii_types: all
     mask_style: synthetic
+    irreversible_types: [CVV, PIN]
     api_key_sha256: 58d612865c4e564a55771ae8638b070899244b8f2531ed487d8f5e6c64c4726c
   support-chat:
     enabled: true
     pii_types: all
     mask_style: partial
+    irreversible_types: [CVV, PIN]
     api_key_sha256: 20cae7b7711f0f29aa57326f091489362e4530e1dea4c50f29201b55f7eec75c
   legacy-crm:
     enabled: false

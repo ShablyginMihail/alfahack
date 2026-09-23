@@ -12,9 +12,11 @@ from pii_guard.main import create_app
 from pii_guard.settings import Settings
 from tests.helpers import make_settings, write_config
 
+TEST_BASE_URL = "http://test"
 TOKEN_KEY = secrets.token_urlsafe(16)
 NO_UNMASK_KEY = secrets.token_urlsafe(16)
 SYNTHETIC_KEY = secrets.token_urlsafe(16)
+IRREVERSIBLE_KEY = secrets.token_urlsafe(16)
 
 CHAT_PATH = "/v1/chat/completions"
 IVANOV = "Иванов"
@@ -51,6 +53,14 @@ def _systems_config() -> dict:
                 "unmask": True,
                 "api_key_sha256": _sha(SYNTHETIC_KEY),
             },
+            "irreversible-sys": {
+                "enabled": True,
+                "pii_types": "all",
+                "mask_style": "token",
+                "unmask": True,
+                "irreversible_types": ["CVV"],
+                "api_key_sha256": _sha(IRREVERSIBLE_KEY),
+            },
         },
     }
 
@@ -79,7 +89,7 @@ async def _client_for(settings: Settings):
     transport = ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
-        AsyncClient(transport=transport, base_url="http://test") as c,
+        AsyncClient(transport=transport, base_url=TEST_BASE_URL) as c,
     ):
         yield app, c
 
@@ -222,7 +232,7 @@ async def test_chat_overloaded_returns_429(tmp_path) -> None:
     transport = ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
-        AsyncClient(transport=transport, base_url="http://test") as client,
+        AsyncClient(transport=transport, base_url=TEST_BASE_URL) as client,
     ):
         gate = app.state.concurrency_gate
         assert gate.try_enter() is True
@@ -235,3 +245,58 @@ async def test_chat_overloaded_returns_429(tmp_path) -> None:
         assert resp.json() == {"error": "overloaded"}
         assert resp.headers["retry-after"] == "1"
         gate.exit()
+
+
+@pytest.mark.asyncio
+async def test_chat_irreversible_types_stay_masked(tmp_path) -> None:
+    settings = _settings(tmp_path)
+    async with _client_for(settings) as (_app, client):
+        content = "Клиент Иванов Иван Иванович, CVV 123"
+        resp = await client.post(
+            CHAT_PATH,
+            json=_chat([{"role": "user", "content": content}]),
+            headers={"X-API-Key": IRREVERSIBLE_KEY},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        answer = body["choices"][0]["message"]["content"]
+        assert IVANOV_FULL in answer
+        assert "123" not in answer
+
+
+class TrackingLLM:
+    name = "tracking"
+    called = False
+
+    async def complete(self, messages: list[dict[str, str]]) -> str:
+        TrackingLLM.called = True
+        return "answer"
+
+    async def aclose(self) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_chat_detection_unavailable_returns_503(tmp_path) -> None:
+    settings = make_settings(
+        tmp_path,
+        recognizer_modules=["tests.fake_failing_recognizers"],
+    )
+    write_config(settings.config_dir, systems=_systems_config())
+    app = create_app(settings)
+    transport = ASGITransport(app=app)
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=transport, base_url=TEST_BASE_URL) as client,
+    ):
+        TrackingLLM.called = False
+        app.state.llm_client = TrackingLLM()
+        resp = await client.post(
+            CHAT_PATH,
+            json=_chat([{"role": "user", "content": "hi"}]),
+            headers={"X-API-Key": TOKEN_KEY},
+        )
+        assert resp.status_code == 503
+        assert resp.json() == {"error": "detection_unavailable"}
+        assert resp.headers["retry-after"] == "1"
+        assert TrackingLLM.called is False

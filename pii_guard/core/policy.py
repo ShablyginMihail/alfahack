@@ -12,6 +12,7 @@ _MIN_THRESHOLD = 0.05
 class CombinationRule:
     pii_type: str
     requires_any: frozenset[str]
+    window: int = 300
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +26,7 @@ class Profile:
     thresholds: Mapping[str, float] = field(default_factory=dict)
     default_threshold: float = 0.5
     strict_delta: float = 0.15
+    irreversible: frozenset[str] = frozenset()
 
     def allows(self, pii_type: str) -> bool:
         return self.pii_types is None or pii_type in self.pii_types
@@ -39,6 +41,14 @@ class Profile:
 CHECKER_PROFILE = Profile(name="checker", mask_style="full")
 
 
+def _distance(a: Span, b: Span) -> int:
+    if a.start < b.end and b.start < a.end:
+        return 0
+    if a.end <= b.start:
+        return b.start - a.end
+    return a.start - b.end
+
+
 def apply_rules(spans: Sequence[Span], rules: Sequence[CombinationRule]) -> list[Span]:
     if not rules:
         return list(spans)
@@ -47,7 +57,15 @@ def apply_rules(spans: Sequence[Span], rules: Sequence[CombinationRule]) -> list
     kept: list[Span] = []
     for span in spans:
         for rule in rules:
-            if rule.pii_type == span.pii_type and not (rule.requires_any & present):
+            if rule.pii_type != span.pii_type:
+                continue
+            if not (rule.requires_any & present):
+                break
+            if not any(
+                _distance(span, other) <= rule.window
+                for other in spans
+                if other.pii_type in rule.requires_any
+            ):
                 break
         else:
             kept.append(span)

@@ -31,6 +31,14 @@ def _safe_detail(errors: Sequence[Any]) -> list[dict[str, Any]]:
     return detail
 
 
+def detection_unavailable_error(retry_after_seconds: int) -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={"error": "detection_unavailable"},
+        headers={"Retry-After": str(retry_after_seconds)},
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
