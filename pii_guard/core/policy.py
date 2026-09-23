@@ -22,6 +22,7 @@ class Profile:
     mask_style: str = "partial"
     unmask: bool = True
     strict: bool = False
+    ner: bool = False
     rules: tuple[CombinationRule, ...] = ()
     thresholds: Mapping[str, float] = field(default_factory=dict)
     default_threshold: float = 0.5

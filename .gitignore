@@ -26,6 +26,7 @@ dist/
 # сгенерированные данные и результаты
 eval/generated/
 eval/out/
+eval/data/
 loadtest/results/
 *.zip
 

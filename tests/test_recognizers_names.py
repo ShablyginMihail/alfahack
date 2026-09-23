@@ -285,3 +285,35 @@ def test_context_city_not_person() -> None:
 
 def test_context_known_name_still_person() -> None:
     assert _has_person("Клиент Иванов Иван Иванович")
+
+
+def test_krylova_with_phone_is_person() -> None:
+    _span_at("Алла Крылова +7-926-444-55-66 нужна диагностика ходовой", "Алла Крылова", "PERSON")
+
+
+def test_pushkina_with_phone_is_person() -> None:
+    _span_at("Анна Пушкина, тел. 89161234567", "Анна Пушкина", "PERSON")
+
+
+def test_pushkin_work_title_not_person() -> None:
+    assert not _has_person("Александр Пушкин написал «Капитанскую дочку»")
+
+
+def test_tolstoy_born_not_person() -> None:
+    assert not _has_person("Лев Толстой родился в Ясной Поляне")
+
+
+def test_pushkin_alone_not_person() -> None:
+    assert not _has_person("Пушкин — великий поэт")
+
+
+def test_dostoevsky_yo_not_person() -> None:
+    assert not _has_person("Фёдор Достоевский написал «Идиота»")
+
+
+def test_dostoevsky_ye_not_person() -> None:
+    assert not _has_person("Федор Достоевский — классик")
+
+
+def test_krylov_yo_with_phone_is_person() -> None:
+    _span_at("Фёдор Крылов, тел. 89161234567", "Фёдор Крылов", "PERSON")

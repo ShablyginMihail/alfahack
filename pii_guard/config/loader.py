@@ -17,6 +17,7 @@ from pii_guard.config.models import (
 from pii_guard.core.context import compile_keywords
 from pii_guard.core.engine import Engine
 from pii_guard.core.masking import DefaultMasker, PartialSpec
+from pii_guard.core.ml_stage import MlStage
 from pii_guard.core.policy import CombinationRule, Profile
 from pii_guard.core.registry import RecognizerRegistry
 from pii_guard.core.types import PiiType, TypeRegistry, default_type_registry
@@ -84,6 +85,7 @@ class AppConfig:
             mask_style=system.mask_style,
             unmask=system.unmask,
             strict=system.strict,
+            ner=system.ner,
             rules=rules,
             irreversible=frozenset(system.irreversible_types),
         )
@@ -118,7 +120,11 @@ def load_config(config_dir: Path) -> AppConfig:
     return AppConfig(systems, pii_types)
 
 
-def build_engine(config: AppConfig, recognizer_modules: list[str]) -> Engine:
+def build_engine(
+    config: AppConfig,
+    recognizer_modules: list[str],
+    ml: MlStage | None = None,
+) -> Engine:
     registry = RecognizerRegistry.from_modules(recognizer_modules)
     for code, custom in config._pii_types.custom_types.items():
         rules = []
@@ -139,13 +145,19 @@ def build_engine(config: AppConfig, recognizer_modules: list[str]) -> Engine:
             )
         registry.register(RegexRecognizer(f"custom_{code}", rules))
     masker = DefaultMasker(config.type_registry(), config.partial_specs())
-    return Engine(registry, masker)
+    return Engine(registry, masker, ml=ml)
 
 
 class ConfigStore:
-    def __init__(self, config_dir: Path, recognizer_modules: list[str]) -> None:
+    def __init__(
+        self,
+        config_dir: Path,
+        recognizer_modules: list[str],
+        ml: MlStage | None = None,
+    ) -> None:
         self._config_dir = Path(config_dir)
         self._recognizer_modules = recognizer_modules
+        self._ml = ml
         self._current: tuple[AppConfig, Engine] | None = None
         self._mtimes: dict[str, float] = {}
         self._last_reload = 0.0
@@ -159,7 +171,7 @@ class ConfigStore:
     def reload(self) -> str | None:
         try:
             config = load_config(self._config_dir)
-            engine = build_engine(config, self._recognizer_modules)
+            engine = build_engine(config, self._recognizer_modules, self._ml)
             self._current = (config, engine)
             self._mtimes = self._file_mtimes()
             return None

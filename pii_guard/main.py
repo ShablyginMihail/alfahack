@@ -13,6 +13,7 @@ from pii_guard.api import admin, errors, health, mask, metrics, process, proxy
 from pii_guard.config.loader import ConfigStore
 from pii_guard.core.concurrency import ConcurrencyGate
 from pii_guard.core.engine import Engine
+from pii_guard.core.ml_stage import MlStage
 from pii_guard.core.policy import CHECKER_PROFILE
 from pii_guard.llm.client import create_llm_client
 from pii_guard.observability.logging import configure_logging, get_logger
@@ -35,11 +36,13 @@ _RESPONSE_START = "http.response.start"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
-def warm_up(engine: Engine) -> None:
+def warm_up(engine: Engine, ml_stage: MlStage | None = None) -> None:
     from pii_guard.recognizers.names import get_morph
 
     get_morph()
     engine.mask("тест", CHECKER_PROFILE)
+    if ml_stage is not None:
+        ml_stage.warm_up()
 
 
 class RequestContextMiddleware:
@@ -176,7 +179,18 @@ def create_app(
         logger.warning("crypto keys not configured, generated ephemeral keys")
 
     cipher = RecordCipher(encryption_key, hmac_key)
-    config_store = ConfigStore(settings.config_dir, settings.recognizer_modules)
+    ml_stage = None
+    if settings.ner_enabled:
+        from pii_guard.ml.model import TransformersNerModel
+        from pii_guard.ml.recognizer import NerRecognizer
+
+        ml_stage = MlStage(
+            NerRecognizer(TransformersNerModel(settings.ner_model, settings.ner_threads)),
+            settings.ner_max_chars,
+            settings.ner_concurrency,
+            settings.ner_wait_ms,
+        )
+    config_store = ConfigStore(settings.config_dir, settings.recognizer_modules, ml_stage)
     llm_client = create_llm_client(settings)
 
     @asynccontextmanager
@@ -203,7 +217,7 @@ def create_app(
         app.state.llm_client = llm_client
         set_store_degraded(store.backend == "redis-degraded")
         _, engine = config_store.current()
-        warm_up(engine)
+        warm_up(engine, ml_stage)
         try:
             yield
         finally:

@@ -80,6 +80,18 @@ class Metrics:
             ("recognizer",),
             registry=registry,
         )
+        self.ner_total = Counter(
+            "pii_ner_total",
+            "NER stage invocations by outcome",
+            ("outcome",),
+            registry=registry,
+        )
+        self.ner_duration = Histogram(
+            "pii_ner_duration_seconds",
+            "NER recognizer call duration in seconds",
+            buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+            registry=registry,
+        )
         self.store_degraded = Gauge(
             "pii_store_degraded",
             "1 if the store is in degraded (redis-degraded) mode",
@@ -124,6 +136,12 @@ def observe_entities(system: str, counts: Iterable[tuple[str, int]]) -> None:
 
 def observe_recognizer_failure(recognizer: str) -> None:
     metrics.recognizer_failures_total.labels(recognizer=recognizer).inc()
+
+
+def observe_ner(outcome: str, duration_seconds: float) -> None:
+    metrics.ner_total.labels(outcome=outcome).inc()
+    if duration_seconds > 0:
+        metrics.ner_duration.observe(duration_seconds)
 
 
 def set_store_degraded(degraded: bool) -> None:

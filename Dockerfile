@@ -9,11 +9,18 @@ WORKDIR /app
 
 COPY pyproject.toml ./
 COPY pii_guard/ ./pii_guard/
-RUN pip install .
+RUN pip install --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install ".[ml]"
 
 COPY gunicorn.conf.py ./
 COPY config/ ./config/
 COPY data/ ./data/
+
+ARG NER_MODEL=LLAIMlegal/ru-legal-ner
+ENV HF_HOME=/app/models
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('$NER_MODEL', allow_patterns=['*.json', '*.safetensors', '*.txt'])"
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
 
 RUN useradd --system app
 USER app

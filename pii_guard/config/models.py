@@ -78,6 +78,7 @@ class SystemConfigModel(BaseModel):
     mask_style: str = "partial"
     unmask: bool = True
     strict: bool = False
+    ner: bool = False
     api_key_sha256: str | None = None
     rules: list[SystemRuleModel] = Field(default_factory=list)
     irreversible_types: list[str] = Field(default_factory=list)
@@ -94,6 +95,7 @@ class SystemsDefaultsModel(BaseModel):
     mask_style: str = "partial"
     unmask: bool = True
     strict: bool = False
+    ner: bool = False
 
     @field_validator("mask_style")
     @classmethod
@@ -116,4 +118,6 @@ class SystemsConfig(BaseModel):
                 system.unmask = self.defaults.unmask
             if "strict" not in system.model_fields_set:
                 system.strict = self.defaults.strict
+            if "ner" not in system.model_fields_set:
+                system.ner = self.defaults.ner
         return self

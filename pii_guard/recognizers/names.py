@@ -15,6 +15,7 @@ from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
 
 TOKEN_RE = re.compile(r"[а-яё]\.|[а-яё]+(?:-[а-яё]+)*")
+_DIGIT_RUN_RE = re.compile(r"(?:\d[\s\-()]*){6,}\d")
 
 PATR_END_RE = re.compile(r"(?:ович|евич|овна|евна|ична|инична)(?:а|у|е|ой|ом|ы|и|ю|ей|ою)?$")
 SURN_END_RE = re.compile(
@@ -514,18 +515,45 @@ def _word_variants(word: str) -> frozenset[str]:
     return frozenset(variants)
 
 
-def _load_public_figures() -> frozenset[str]:
+@lru_cache(maxsize=65_536)
+def _name_normal_forms(word: str) -> frozenset[str]:
+    forms: set[str] = set()
+    for parse in parse_word(word):
+        if parse.score >= 0.05 and "Name" in parse.tag and parse.normal_form:
+            forms.add(parse.normal_form.replace("ё", "е"))
+    return frozenset(forms)
+
+
+def _load_public_figures() -> tuple[frozenset[str], dict[str, frozenset[str]]]:
     path = Path(__file__).resolve().parent.parent.parent / "data" / "dicts" / "public_figures.txt"
     if not path.exists():
-        return frozenset()
-    return frozenset(
-        line.strip().lower()
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    )
+        return frozenset(), {}
+    surnames: set[str] = set()
+    names: dict[str, frozenset[str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip().lower().replace("ё", "е")
+        if not line:
+            continue
+        if ":" in line:
+            surname, _, name_part = line.partition(":")
+            surname = surname.strip().lower()
+            surnames.add(surname)
+            names[surname] = frozenset(
+                name.strip().lower() for name in name_part.split(",") if name.strip()
+            )
+        else:
+            surnames.add(line.lower())
+    return frozenset(surnames), names
 
 
-PUBLIC_FIGURES = _load_public_figures()
+PUBLIC_FIGURES, PUBLIC_FIGURE_NAMES = _load_public_figures()
+
+
+def _public_figure_key(surname: str) -> str | None:
+    for variant in _word_variants(surname):
+        if variant in PUBLIC_FIGURES:
+            return variant
+    return None
 
 
 def _sentence_start(doc: Document, position: int) -> int:
@@ -921,17 +949,52 @@ class NameRecognizer(Recognizer):
     ) -> bool:
         if find_keyword(doc, span.start, span.end, PERSONAL_CONTEXT, 40, "both") is not None:
             return False
+        if self._has_personal_evidence(doc, span):
+            return False
         surname = self._surname_token(tokens, start, end)
-        if surname and _word_variants(surname) & PUBLIC_FIGURES:
-            return True
+        if surname:
+            key = _public_figure_key(surname)
+            if key is not None:
+                return self._public_figure_name_matches(tokens, start, end, key)
         return find_keyword(doc, span.start, span.end, CULTURAL_CONTEXT, 40, "before") is not None
 
     def _is_public_figure_single(self, doc: Document, span: Span, token: _Token) -> bool:
         if find_keyword(doc, span.start, span.end, PERSONAL_CONTEXT, 40, "both") is not None:
             return False
-        if "SURN" in token.roles and _word_variants(token.text) & PUBLIC_FIGURES:
-            return True
+        if self._has_personal_evidence(doc, span):
+            return False
+        if "SURN" in token.roles:
+            key = _public_figure_key(token.text)
+            if key is not None:
+                return self._public_figure_name_matches([token], 0, 1, key)
         return find_keyword(doc, span.start, span.end, CULTURAL_CONTEXT, 40, "before") is not None
+
+    @staticmethod
+    def _public_figure_name_matches(tokens: list[_Token], start: int, end: int, key: str) -> bool:
+        for token in tokens[start:end]:
+            if "NAME" in token.roles:
+                names = PUBLIC_FIGURE_NAMES.get(key)
+                if not names:
+                    return True
+                return bool(_name_normal_forms(token.text) & names)
+        return True
+
+    @staticmethod
+    def _has_personal_evidence(doc: Document, span: Span) -> bool:
+        sentence = NameRecognizer._sentence(doc, span.start, span.end)
+        if "@" in sentence:
+            return True
+        return _DIGIT_RUN_RE.search(sentence) is not None
+
+    @staticmethod
+    def _sentence(doc: Document, start: int, end: int) -> str:
+        sent_start = _sentence_start(doc, start)
+        sent_end = len(doc.norm)
+        for i in range(end, len(doc.norm)):
+            if doc.norm[i] in ".!?\n":
+                sent_end = i
+                break
+        return doc.norm[sent_start:sent_end]
 
     @staticmethod
     def _surname_token(tokens: list[_Token], start: int, end: int) -> str:

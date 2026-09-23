@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None
     llm_model: str = "default"
     llm_timeout_seconds: float = 30.0
+    ner_enabled: bool = False
+    ner_model: str = "LLAIMlegal/ru-legal-ner"
+    ner_threads: int = 1
+    ner_max_chars: int = 2000
+    ner_concurrency: int = 1
+    ner_wait_ms: int = 20
     recognizer_modules: list[str] = [
         "pii_guard.recognizers.numeric",
         "pii_guard.recognizers.documents",

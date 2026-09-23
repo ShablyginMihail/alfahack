@@ -155,6 +155,17 @@ COUNTRY_RE = re.compile(
 )
 
 
+def is_bank_branch(doc: Document, start: int) -> bool:
+    before = doc.norm[max(0, start - 60) : start]
+    has_bank_context = (
+        find_keyword(doc, start, start, BANK_CONTEXT, 60, "before") is not None
+        or BANK_OFFICE_RE.search(before) is not None
+    )
+    if not has_bank_context:
+        return False
+    return find_keyword(doc, start, start, BANK_EXCEPTION, 60, "before") is None
+
+
 @dataclass(slots=True)
 class _Component:
     start: int
@@ -394,14 +405,7 @@ class AddressRecognizer(Recognizer):
         return re.search(r"(?:почтовый\s+)?индекс\s*:?\s*$", before) is not None
 
     def _is_bank_branch(self, doc: Document, start: int) -> bool:
-        before = doc.norm[max(0, start - 60) : start]
-        has_bank_context = (
-            find_keyword(doc, start, start, BANK_CONTEXT, 60, "before") is not None
-            or BANK_OFFICE_RE.search(before) is not None
-        )
-        if not has_bank_context:
-            return False
-        return find_keyword(doc, start, start, BANK_EXCEPTION, 60, "before") is None
+        return is_bank_branch(doc, start)
 
     def _find_cities_without_marker(self, doc: Document) -> list[_Component]:
         cities: list[_Component] = []

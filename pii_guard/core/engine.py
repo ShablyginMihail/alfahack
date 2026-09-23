@@ -7,6 +7,7 @@ from typing import Protocol
 
 import structlog
 
+from pii_guard.core.ml_stage import MlStage
 from pii_guard.core.models import MaskResult, Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.policy import Profile, apply_rules
@@ -83,16 +84,21 @@ class Engine:
         registry: RecognizerRegistry,
         masker: Masker,
         priorities: Mapping[str, int] | None = None,
+        ml: MlStage | None = None,
     ) -> None:
         self._registry = registry
         self._masker = masker
         self._priorities = priorities
+        self._ml = ml
 
     def analyze(self, text: str, profile: Profile, fail_closed: bool = False) -> list[Span]:
         if not text:
             return []
         doc = Document.from_text(text)
         candidates = self._collect_candidates(doc, profile, fail_closed)
+
+        if self._ml is not None and profile.ner:
+            candidates.extend(self._ml.run(doc, candidates))
 
         threshold = profile.threshold_for
         filtered = [

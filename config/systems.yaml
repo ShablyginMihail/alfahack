@@ -2,6 +2,7 @@ defaults:
   mask_style: partial
   unmask: true
   strict: false
+  ner: true
 
 systems:
   checker:
