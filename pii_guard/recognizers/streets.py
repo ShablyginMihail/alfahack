@@ -8,6 +8,7 @@ from pii_guard.core.context import compile_keywords, find_keyword
 from pii_guard.core.models import Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
+from pii_guard.core.service_words import SERVICE_WORDS
 from pii_guard.recognizers.address import ADDRESS_CONTEXT, CITIES, is_bank_branch
 from pii_guard.recognizers.names import parse_word
 
@@ -143,6 +144,8 @@ class StreetNameRecognizer(Recognizer):
                 score += 0.15
             return score
         if city is None or not doc.text[street_start].isupper():
+            return None
+        if len(street_words) < 3 or street_words in SERVICE_WORDS:
             return None
         return 0.75
 
