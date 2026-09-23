@@ -298,3 +298,34 @@ def test_personal_email_masked() -> None:
 
 def test_personal_email_in_org_context_masked() -> None:
     assert "EMAIL" in _types("Почта отдела: ivanov@company.ru")
+
+
+def test_obfuscated_email_at_brackets() -> None:
+    text = "ivan.petrov [at] mail [dot] ru"
+    _span_at(text, text, "EMAIL")
+
+
+def test_obfuscated_email_sobaka_parens() -> None:
+    text = "ivan.petrov(собака)mail.ru"
+    _span_at(text, text, "EMAIL")
+
+
+def test_obfuscated_email_sobaka_words() -> None:
+    text = "ivan собака mail точка ru"
+    _span_at(text, text, "EMAIL")
+
+
+def test_obfuscated_email_negative() -> None:
+    assert "EMAIL" not in _types("встреча at home")
+    assert "EMAIL" not in _types("моя собака лает во дворе")
+    assert "EMAIL" not in _types("собака лает")
+
+
+def test_card_spaced_valid_luhn_found() -> None:
+    number = " ".join(_luhn("427638001234567"))
+    assert "CARD_NUMBER" in _types(number)
+
+
+def test_card_spaced_invalid_luhn_not_found() -> None:
+    number = "4 2 7 6 3 8 0 1 2 3 4 5 6 7 8 9"
+    assert "CARD_NUMBER" not in _types(f"перевод {number}")

@@ -57,6 +57,24 @@ def test_document_from_text() -> None:
     assert doc.norm == "иванов ежик - тест"
 
 
+def test_lookalike_latin_to_cyrillic() -> None:
+    assert normalize("Петpов Сеpгей") == "петров сергей"
+    assert normalize("Ивaнов") == "иванов"
+    assert normalize("Mир") == "мир"
+
+
+def test_latin_only_words_unchanged() -> None:
+    assert normalize("john") == "john"
+    assert normalize("mercedes") == "mercedes"
+    assert normalize("ivan.petrov@mail.ru") == "ivan.petrov@mail.ru"
+    assert normalize("iPhone-ом") == "iphone-ом"
+
+
+def test_lookalike_length_preserved() -> None:
+    for text in ["Петpов Сеpгей", "Ивaнов", "Mир"]:
+        assert len(normalize(text)) == len(text)
+
+
 @given(st.text())
 @settings(max_examples=200)
 def test_length_preserved_for_arbitrary_text(text: str) -> None:

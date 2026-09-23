@@ -17,6 +17,19 @@ SERVICE_LOCAL = (
 EMAIL_RE = re.compile(rf"(?<!\w)(?!{SERVICE_LOCAL}@)[\w.+-]+@[\w.-]+\.[\w-]+(?!\w)")
 SERVICE_EMAIL_RE = re.compile(rf"(?<!\w){SERVICE_LOCAL}@[\w.-]+\.[\w-]+(?!\w)")
 
+_AT = (
+    r"(?:\s*\[at\]\s*|\s*\(at\)\s*|\s*\[собака\]\s*|\s*\(собака\)\s*"
+    r"|\s+at\s+|\s+собака\s+)"
+)
+_DOT = (
+    r"(?:\.|\s*\[dot\]\s*|\s*\(dot\)\s*|\s*\[точка\]\s*|\s*\(точка\)\s*"
+    r"|\s+dot\s+|\s+точка\s+)"
+)
+OBFUSCATED_EMAIL_RE = re.compile(
+    rf"(?<!\w)[a-zA-Z0-9._+-]+{_AT}[a-zA-Z0-9-]+(?:{_DOT}[a-zA-Z0-9-]+)*"
+    rf"{_DOT}[a-zA-Z]{{2,10}}(?!\w)"
+)
+
 PHONE_PLUS7_RE = re.compile(
     r"(?<!\d)\+7[\s.\-]*\(?(?!800)\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{2}[\s.\-]*\d{2}(?!\d)"
 )
@@ -31,6 +44,7 @@ PHONE_INTL_RE = re.compile(
 CARD_GROUPED_RE = re.compile(r"(?<!\d)\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}(?!\d)")
 CARD_RUN_RE = re.compile(r"(?<!\d)\d{13,19}(?!\d)")
 CARD_RUN_16_RE = re.compile(r"(?<!\d)[2-6]\d{15}(?!\d)")
+CARD_SPACED_RE = re.compile(r"(?<!\d)(?<![ -]\d)\d(?:[ -]\d){15,18}(?!\d)(?![ -]\d)")
 
 INN_RUN_RE = re.compile(r"(?<!\d)(?:\d{10}|\d{12})(?!\d)")
 INN_SEPARATED_RE = re.compile(r"(?<!\d)\d{2,4}[\s-]\d{2,4}[\s-]\d{2,6}(?!\d)")
@@ -159,6 +173,17 @@ def _card_rules() -> Sequence[PatternRule]:
             negative=CARD_NEGATIVE,
             negative_penalty=0.4,
         ),
+        PatternRule(
+            "CARD_NUMBER",
+            CARD_SPACED_RE,
+            0.35,
+            validator=luhn_valid,
+            validator_bonus=0.35,
+            context=CARD_CONTEXT,
+            context_bonus=0.3,
+            negative=CARD_NEGATIVE,
+            negative_penalty=0.4,
+        ),
     )
 
 
@@ -189,6 +214,7 @@ def _inn_rules() -> Sequence[PatternRule]:
 def _email_rules() -> Sequence[PatternRule]:
     return (
         PatternRule("EMAIL", EMAIL_RE, 0.95),
+        PatternRule("EMAIL", OBFUSCATED_EMAIL_RE, 0.9),
         PatternRule(
             "EMAIL",
             SERVICE_EMAIL_RE,
