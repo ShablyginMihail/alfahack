@@ -6,6 +6,8 @@ from pii_guard.settings import Settings
 from tests.helpers import PARTIAL_PROFILE
 
 SNILS_TEXT = "СНИЛС 112-233-445 95"
+BIRTH_SEPARATE = "свидетельство о рождении серия I-ТН номер 123456"
+PASSPORT_SEPARATE = "серия 4509 номер 123456"
 
 
 def _engine() -> Engine:
@@ -36,7 +38,7 @@ def test_passport_masked() -> None:
 
 
 def test_passport_separate() -> None:
-    assert _mask("серия 4509 номер 123456") == "серия 45** номер ****56"
+    assert _mask(PASSPORT_SEPARATE) == "серия 45** номер ****56"
 
 
 def test_passport_separate_with_no() -> None:
@@ -117,7 +119,7 @@ def test_passport_separate_with_labels() -> None:
 
 
 def test_passport_separate_plain() -> None:
-    assert _mask("серия 4509 номер 123456") == "серия 45** номер ****56"
+    assert _mask(PASSPORT_SEPARATE) == "серия 45** номер ****56"
 
 
 def test_passport_series_with_combined_number() -> None:
@@ -230,3 +232,92 @@ def test_passport_with_vydan_still_passport() -> None:
 def test_division_code_kp() -> None:
     assert "DIVISION_CODE" in _types("к.п. 370-012")
     assert "DIVISION_CODE" in _types("кп 370-012")
+
+
+def test_military_id_combined() -> None:
+    assert "MILITARY_ID" in _types("военный билет АВ 1234567")
+    assert "MILITARY_ID" in _types("военник АК № 0123456")
+
+
+def test_military_id_separate() -> None:
+    text = "серия АА номер 1234567 военного билета"
+    _span_at(text, "АА", "MILITARY_ID")
+    _span_at(text, "1234567", "MILITARY_ID")
+
+
+def test_military_id_no_context() -> None:
+    assert "MILITARY_ID" not in _types("номер АВ 1234567 в заявке")
+
+
+def test_birth_certificate_combined() -> None:
+    assert "BIRTH_CERTIFICATE" in _types("свидетельство о рождении IV-МЮ № 123456")
+    assert "BIRTH_CERTIFICATE" in _types("свидетельства о рождении II-АГ 654321")
+
+
+def test_birth_certificate_separate() -> None:
+    _span_at(BIRTH_SEPARATE, "I-ТН", "BIRTH_CERTIFICATE")
+    _span_at(BIRTH_SEPARATE, "123456", "BIRTH_CERTIFICATE")
+
+
+def test_birth_certificate_not_passport() -> None:
+    assert "BIRTH_CERTIFICATE" in _types(BIRTH_SEPARATE)
+    assert "PASSPORT" not in _types(BIRTH_SEPARATE)
+
+
+def test_residence_permit_combined() -> None:
+    assert "RESIDENCE_PERMIT" in _types("вид на жительство 82 № 1234567")
+    assert "RESIDENCE_PERMIT" in _types("внж 83 0012345")
+
+
+def test_residence_permit_number() -> None:
+    assert "RESIDENCE_PERMIT" in _types("рвп № 123456")
+    assert "RESIDENCE_PERMIT" in _types("разрешение на временное проживание № 1234567")
+
+
+def test_residence_permit_no_context() -> None:
+    assert "RESIDENCE_PERMIT" not in _types("номер 82 1234567 в заявке")
+
+
+def test_foreign_national_passport() -> None:
+    assert "FOREIGN_NATIONAL_PASSPORT" in _types("паспорт иностранного гражданина AA1234567")
+    assert "FOREIGN_NATIONAL_PASSPORT" in _types("национальный паспорт N12345678")
+    assert "FOREIGN_NATIONAL_PASSPORT" in _types("иностранный паспорт FA 1234567")
+
+
+def test_foreign_national_passport_no_context() -> None:
+    assert "FOREIGN_NATIONAL_PASSPORT" not in _types("номер AA1234567 в заявке")
+
+
+def test_foreign_passport_with_no() -> None:
+    assert "FOREIGN_PASSPORT" in _types("заграничный паспорт 71 №1234567")
+
+
+def test_driver_license_abbrev_context() -> None:
+    assert "DRIVER_LICENSE" in _types("вод. удост. 77 23 456789")
+
+
+def test_driver_license_series_letters() -> None:
+    text = "в/у серия 77 АВ номер 123456"
+    _span_at(text, "77 АВ", "DRIVER_LICENSE")
+
+
+def test_documents_still_recognized() -> None:
+    assert "DRIVER_LICENSE" in _types("ВУ 77АВ123456")
+    assert "DRIVER_LICENSE" in _types("водительское удостоверение 99 12 345678")
+    assert "PASSPORT" in _types("паспорт 4509 123456")
+    assert "PASSPORT" in _types(PASSPORT_SEPARATE)
+
+
+def test_passport_citizen_rf_combined() -> None:
+    text = "Паспорт гражданина РФ 4509 123456, выдан ОУФМС России по г. Москве"
+    _span_at(text, "4509 123456", "PASSPORT")
+
+
+def test_passport_citizen_rf_separate() -> None:
+    text = "Клиент предъявил паспорт гражданина Российской Федерации серия 4509 номер 123456"
+    _span_at(text, "4509", "PASSPORT")
+    _span_at(text, "123456", "PASSPORT")
+
+
+def test_foreign_national_passport_citizen() -> None:
+    assert "FOREIGN_NATIONAL_PASSPORT" in _types("паспорт гражданина Узбекистана AA1234567")

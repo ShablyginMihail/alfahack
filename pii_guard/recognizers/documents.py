@@ -20,9 +20,9 @@ _SERIES_GROUP = r"(\d{2}[\s-]?\d{2})"
 _NO_SIX_DIGIT_NUMBER = r"(?![\s-]*(?:№\s*)?\d{6}(?!\d))"
 
 
-def _series_re(document_word: str) -> re.Pattern[str]:
+def _series_re(document_word: str, series_group: str = _SERIES_GROUP) -> re.Pattern[str]:
     return re.compile(
-        rf"(?<!\w){_SERIES_WORDS}\s*(?:{document_word}\s*)?[:№]?\s*{_SERIES_GROUP}{_NO_SIX_DIGIT_NUMBER}(?!\d)"
+        rf"(?<!\w){_SERIES_WORDS}\s*(?:{document_word}\s*)?[:№]?\s*{series_group}{_NO_SIX_DIGIT_NUMBER}(?!\d)"
     )
 
 
@@ -33,13 +33,30 @@ DIVISION_CODE_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}(?![\s-]?\d)(?!\d)")
 
 DRIVER_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?\d{6}(?!\d)")
 DRIVER_OLD_RE = re.compile(r"(?<!\d)\d{2}[\s-]?[А-Яа-яЁё]{2}[\s-]?\d{6}(?!\d)")
-DRIVER_SERIES_RE = _series_re("удостоверения")
+_DRIVER_SERIES_GROUP = r"(\d{2}[\s-]?\d{2}|\d{2}[\s-]?[А-Яа-я]{2})"
+DRIVER_SERIES_RE = _series_re("удостоверения", _DRIVER_SERIES_GROUP)
 DRIVER_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(?:удостоверения\s*)?[:.]?\s*(\d{6})(?!\d)")
 
 SNILS_GROUPED_RE = re.compile(r"(?<!\d)\d{3}[\s-]\d{3}[\s-]\d{3}[\s-]?\d{2}(?!\d)")
 SNILS_RUN_RE = re.compile(r"(?<!\d)\d{11}(?!\d)")
 
-FOREIGN_PASSPORT_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{7}(?!\d)")
+FOREIGN_PASSPORT_RE = re.compile(r"(?<!\d)\d{2}[\s-]?(?:№|номер)?\s*\d{7}(?!\d)")
+
+_CYR2 = r"[А-Яа-я]{2}"
+_ROMAN = r"[IVXLCivxlc]+"
+
+MILITARY_COMBINED_RE = re.compile(rf"(?<!\w){_CYR2}\s*(?:№\s*)?\d{{7}}(?!\d)")
+MILITARY_SERIES_RE = re.compile(rf"(?<!\w){_SERIES_WORDS}\s*({_CYR2})(?!\w)")
+MILITARY_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(\d{7})(?!\d)")
+
+BIRTH_COMBINED_RE = re.compile(rf"(?<!\w){_ROMAN}\s*-\s*{_CYR2}\s*(?:№\s*)?\d{{6}}(?!\d)")
+BIRTH_SERIES_RE = re.compile(rf"(?<!\w){_SERIES_WORDS}\s*({_ROMAN}\s*-\s*{_CYR2})(?!\w)")
+BIRTH_NUMBER_RE = re.compile(r"(?<!\w)(?:номер|№)\s*(\d{6})(?!\d)")
+
+RESIDENCE_COMBINED_RE = re.compile(r"(?<!\d)\d{2}\s*(?:№\s*)?\d{7}(?!\d)")
+RESIDENCE_NUMBER_RE = re.compile(r"(?<!\w)(?:№|номер)\s*(\d{6,7})(?!\d)")
+
+FOREIGN_NATIONAL_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{1,2}\s*\d{6,9}(?!\d)")
 
 PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD, "серия", "серии", "номер паспорта", "пасп"])
 PASSPORT_COMBINED_CONTEXT = compile_keywords(
@@ -49,9 +66,37 @@ DIVISION_CONTEXT = compile_keywords(
     ["код подразделения", "подразделени", "код подр", "к/п", "к.п.", "кп"]
 )
 DIVISION_PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD, "выдан"])
-DRIVER_CONTEXT = compile_keywords(["водительск", "ву", "в/у", "права", "удостоверени"])
+_DRIVER_WORDS = ["водительск", "ву", "в/у", "права", "удостоверени", "удост", "вод. уд"]
+DRIVER_CONTEXT = compile_keywords(_DRIVER_WORDS)
 SNILS_CONTEXT = compile_keywords(["снилс", "страхов"])
 FOREIGN_CONTEXT = compile_keywords(["загран", "заграничн"])
+
+_MILITARY_WORDS = ["военный билет", "военного билета", "военник", "в/б", "воен. билет"]
+_BIRTH_WORDS = ["свидетельство о рождении", "свидетельства о рождении", "св-во о рождении"]
+_RESIDENCE_WORDS = [
+    "вид на жительство",
+    "вида на жительство",
+    "внж",
+    "разрешение на временное проживание",
+    "рвп",
+]
+_FOREIGN_NATIONAL_WORDS = [
+    "паспорт гражданина",
+    "паспорт иностранного гражданина",
+    "иностранный паспорт",
+    "национальный паспорт",
+    "паспорт республики",
+    "national passport",
+    "passport",
+]
+
+MILITARY_CONTEXT = compile_keywords(_MILITARY_WORDS)
+BIRTH_CONTEXT = compile_keywords(_BIRTH_WORDS)
+RESIDENCE_CONTEXT = compile_keywords(_RESIDENCE_WORDS)
+FOREIGN_NATIONAL_CONTEXT = compile_keywords(_FOREIGN_NATIONAL_WORDS)
+DOCUMENT_CONTEXT = compile_keywords(
+    [*_DRIVER_WORDS, *_MILITARY_WORDS, *_BIRTH_WORDS, *_RESIDENCE_WORDS]
+)
 
 ISSUER_MARKERS = (
     r"(?:выдан|выдана|выдано|кем выдан|орган выдачи|выдавший орган|орган, выдавший паспорт)"
@@ -80,7 +125,7 @@ def _passport_rules() -> Sequence[PatternRule]:
             0.45,
             context=PASSPORT_COMBINED_CONTEXT,
             context_bonus=0.45,
-            negative=DRIVER_CONTEXT,
+            negative=DOCUMENT_CONTEXT,
             negative_penalty=0.5,
         ),
         PatternRule(
@@ -98,7 +143,7 @@ def _passport_rules() -> Sequence[PatternRule]:
             context=PASSPORT_CONTEXT,
             context_bonus=0.2,
             # «серия … номер …» после «водительское удостоверение» — это ВУ, а не паспорт
-            negative=DRIVER_CONTEXT,
+            negative=DOCUMENT_CONTEXT,
             negative_penalty=0.5,
             part="series",
         ),
@@ -109,7 +154,7 @@ def _passport_rules() -> Sequence[PatternRule]:
             group=1,
             context=PASSPORT_CONTEXT,
             context_bonus=0.45,
-            negative=DRIVER_CONTEXT,
+            negative=DOCUMENT_CONTEXT,
             negative_penalty=0.5,
             part="number",
         ),
@@ -209,6 +254,108 @@ def _foreign_rules() -> Sequence[PatternRule]:
     )
 
 
+def _military_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "MILITARY_ID",
+            MILITARY_COMBINED_RE,
+            0.15,
+            context=MILITARY_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+        ),
+        PatternRule(
+            "MILITARY_ID",
+            MILITARY_SERIES_RE,
+            0.15,
+            group=1,
+            context=MILITARY_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+            part="series",
+        ),
+        PatternRule(
+            "MILITARY_ID",
+            MILITARY_NUMBER_RE,
+            0.15,
+            group=1,
+            context=MILITARY_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+            part="number",
+        ),
+    )
+
+
+def _birth_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "BIRTH_CERTIFICATE",
+            BIRTH_COMBINED_RE,
+            0.15,
+            context=BIRTH_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+        ),
+        PatternRule(
+            "BIRTH_CERTIFICATE",
+            BIRTH_SERIES_RE,
+            0.15,
+            group=1,
+            context=BIRTH_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+            part="series",
+        ),
+        PatternRule(
+            "BIRTH_CERTIFICATE",
+            BIRTH_NUMBER_RE,
+            0.15,
+            group=1,
+            context=BIRTH_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+            part="number",
+        ),
+    )
+
+
+def _residence_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "RESIDENCE_PERMIT",
+            RESIDENCE_COMBINED_RE,
+            0.15,
+            context=RESIDENCE_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+        ),
+        PatternRule(
+            "RESIDENCE_PERMIT",
+            RESIDENCE_NUMBER_RE,
+            0.15,
+            group=1,
+            context=RESIDENCE_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+            part="number",
+        ),
+    )
+
+
+def _foreign_national_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "FOREIGN_NATIONAL_PASSPORT",
+            FOREIGN_NATIONAL_RE,
+            0.15,
+            context=FOREIGN_NATIONAL_CONTEXT,
+            context_bonus=0.7,
+            context_window=60,
+        ),
+    )
+
+
 def _extract_issuer_value(norm: str, start: int) -> str:
     limit = min(len(norm), start + _ISSUER_SCAN)
     candidates: list[int] = []
@@ -273,5 +420,9 @@ def recognizers() -> list[Recognizer]:
         RegexRecognizer("driver_license", _driver_rules()),
         RegexRecognizer("snils", _snils_rules()),
         RegexRecognizer("foreign_passport", _foreign_rules()),
+        RegexRecognizer("military_id", _military_rules()),
+        RegexRecognizer("birth_certificate", _birth_rules()),
+        RegexRecognizer("residence_permit", _residence_rules()),
+        RegexRecognizer("foreign_national_passport", _foreign_national_rules()),
         PassportIssuerRecognizer(),
     ]
