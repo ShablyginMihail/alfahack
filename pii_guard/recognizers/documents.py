@@ -20,6 +20,7 @@ PASSPORT_WORD = "паспорт"
 
 PASSPORT_COMBINED_RE = re.compile(r"(?<!\d)\d{2}[\s-]?\d{2}[\s-]?(?:№\s*)?\d{6}(?!\d)")
 PASSPORT_RUN_RE = re.compile(r"(?<!\d)\d{10}(?!\d)")
+PASSPORT_SPACED_RE = re.compile(r"(?<!\d)\d{4}\s\d{6}(?![\s-]\d)(?!\d)")
 
 _SERIES_WORDS = r"(?:серия|серии|сер\.)"
 _SERIES_GROUP = r"(\d{2}[\s-]?\d{2})"
@@ -67,9 +68,36 @@ FOREIGN_NATIONAL_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{1,2}\s*\d{6,9}(?!\d)
 OMS_RUN_RE = re.compile(r"(?<!\d)\d{16}(?!\d)")
 OMS_GROUPED_RE = re.compile(r"(?<!\d)\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}(?!\d)")
 
-PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD, "серия", "серии", "номер паспорта", "пасп"])
+PASSPORT_CONTEXT = compile_keywords(
+    [
+        PASSPORT_WORD,
+        "серия",
+        "серии",
+        "серию",
+        "серией",
+        "серия и номер",
+        "серию и номер",
+        "номер паспорта",
+        "пасп",
+    ]
+)
 PASSPORT_COMBINED_CONTEXT = compile_keywords(
-    [PASSPORT_WORD, "серия", "серии", "номер паспорта", "пасп", "выдан"]
+    [
+        PASSPORT_WORD,
+        "серия",
+        "серии",
+        "серию",
+        "серией",
+        "серия и номер",
+        "серию и номер",
+        "номер паспорта",
+        "пасп",
+        "выдан",
+    ]
+)
+PASSPORT_WORD_CONTEXT = compile_keywords([PASSPORT_WORD])
+PASSPORT_NUMBER_WORDS_RE = re.compile(
+    r"(?<!\w)номер\s*(?::\s*)?(?:(?:[а-яё]+\s+){0,2})[:.]?\s*(\d{6})(?!\d)"
 )
 DIVISION_CONTEXT = compile_keywords(
     ["код подразделения", "подразделени", "код подр", "к/п", "к.п.", "кп"]
@@ -111,6 +139,20 @@ FOREIGN_NATIONAL_CONTEXT = compile_keywords(_FOREIGN_NATIONAL_WORDS)
 DOCUMENT_CONTEXT = compile_keywords(
     [*_DRIVER_WORDS, *_MILITARY_WORDS, *_BIRTH_WORDS, *_RESIDENCE_WORDS]
 )
+PASSPORT_NEGATIVE = compile_keywords(
+    [
+        *_DRIVER_WORDS,
+        *_MILITARY_WORDS,
+        *_BIRTH_WORDS,
+        *_RESIDENCE_WORDS,
+        "заказ",
+        "договор",
+        "счет",
+        "трек",
+        "накладн",
+        "артикул",
+    ]
+)
 
 OMS_CONTEXT = compile_keywords(OMS_WORDS)
 
@@ -141,6 +183,7 @@ def _passport_rules() -> Sequence[PatternRule]:
             0.45,
             context=PASSPORT_COMBINED_CONTEXT,
             context_bonus=0.45,
+            context_window=80,
             negative=DOCUMENT_CONTEXT,
             negative_penalty=0.5,
         ),
@@ -150,6 +193,14 @@ def _passport_rules() -> Sequence[PatternRule]:
             0.2,
             context=PASSPORT_CONTEXT,
             context_bonus=0.45,
+            context_window=80,
+        ),
+        PatternRule(
+            "PASSPORT",
+            PASSPORT_SPACED_RE,
+            0.55,
+            negative=PASSPORT_NEGATIVE,
+            negative_penalty=0.5,
         ),
         PatternRule(
             "PASSPORT",
@@ -172,6 +223,17 @@ def _passport_rules() -> Sequence[PatternRule]:
             context_bonus=0.45,
             negative=DOCUMENT_CONTEXT,
             negative_penalty=0.5,
+            part="number",
+        ),
+        PatternRule(
+            "PASSPORT",
+            PASSPORT_NUMBER_WORDS_RE,
+            0.3,
+            group=1,
+            context=PASSPORT_WORD_CONTEXT,
+            context_bonus=0.45,
+            context_window=80,
+            context_direction="before",
             part="number",
         ),
     )

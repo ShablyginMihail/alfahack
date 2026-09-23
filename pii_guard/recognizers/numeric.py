@@ -75,34 +75,45 @@ CARD_NEGATIVE = compile_keywords(
         *OMS_WORDS,
     ]
 )
-INN_CONTEXT = compile_keywords(["инн"])
-CVV_CONTEXT = compile_keywords(
-    [
-        "cvv",
-        "cvc",
-        "cvv2",
-        "cvc2",
-        "код безопасности",
-        "секретный код",
-        "три цифры",
-        "на обороте",
-        "оборотной стороне",
-        "обратной стороне",
-        "трехзначный код",
-        "cvv-код",
-        "cvc-код",
-        "код cvv",
-        "код cvc",
-        "цвс",
-        "цвв",
-        "свв",
-        "свс",
-        "обратной стороны",
-        "оборотной стороны",
-        "стороны карты",
-        "стороне карты",
-    ]
+INN_CONTEXT = compile_keywords(["инн", "инном", "инну", "инне", "инн-у"])
+_CVV_WORDS = (
+    "cvv",
+    "cvc",
+    "cvv2",
+    "cvc2",
+    "код безопасности",
+    "секретный код",
+    "три цифры",
+    "на обороте",
+    "оборотной стороне",
+    "обратной стороне",
+    "трехзначный код",
+    "cvv-код",
+    "cvc-код",
+    "код cvv",
+    "код cvc",
+    "цвс",
+    "цвв",
+    "свв",
+    "свс",
+    "обратной стороны",
+    "оборотной стороны",
+    "стороны карты",
+    "стороне карты",
+    "сзади карты",
+    "сзади на карте",
+    "на задней стороне",
+    "с задней стороны",
+    "на обороте карты",
+    "с оборота",
 )
+CVV_CONTEXT = compile_keywords(_CVV_WORDS)
+CVV_FAR_RE = re.compile(rf"{CVV_CONTEXT.pattern}[^\d]{{0,60}}(\d{{3}})(?![\s-]\d)(?!\d)")
+CVV_CONFIRM_RE = re.compile(
+    r"(?<!\w)(?:код\s+(?:подтверждения|потверждения|из\s+смс)|потверждения)"
+    r"\s*:?\s*(\d{3})(?![\s-]\d)(?!\d)"
+)
+PAYMENT_CONTEXT = compile_keywords(["карт", "оплат", "платеж", "покупк", "транзакц", "банк"])
 PIN_CONTEXT = compile_keywords(["пин", "pin", "пинкод", "pin code"])
 EMAIL_ORG_CONTEXT = compile_keywords(
     [
@@ -258,6 +269,12 @@ def _cvv_pin_rules() -> Sequence[PatternRule]:
             context_direction="after",
         ),
         PatternRule(
+            "CVV",
+            CVV_FAR_RE,
+            0.75,
+            group=1,
+        ),
+        PatternRule(
             "PIN",
             PIN_RE,
             0.1,
@@ -317,6 +334,25 @@ class CvvPinRecognizer(RegexRecognizer):
         return resolved
 
 
+class CvvConfirmRecognizer(Recognizer):
+    """Код подтверждения при оплате картой: 3 цифры после «код подтверждения» /
+    «код из смс», если в тексте есть слова оплаты или карты."""
+
+    name = "cvv_confirm"
+    pii_types = frozenset({"CVV"})
+
+    def find(self, doc: Document) -> Iterable[Span]:
+        if PAYMENT_CONTEXT.search(doc.norm) is None:
+            return []
+        spans: list[Span] = []
+        for match in CVV_CONFIRM_RE.finditer(doc.norm):
+            value = match.group(1)
+            if value is None:
+                continue
+            spans.append(Span(match.start(1), match.end(1), "CVV", 0.75, self.name))
+        return spans
+
+
 def recognizers() -> list[Recognizer]:
     return [
         RegexRecognizer("email", _email_rules()),
@@ -324,4 +360,5 @@ def recognizers() -> list[Recognizer]:
         RegexRecognizer("card", _card_rules()),
         RegexRecognizer("inn", _inn_rules()),
         CvvPinRecognizer("cvv_pin", _cvv_pin_rules()),
+        CvvConfirmRecognizer(),
     ]
