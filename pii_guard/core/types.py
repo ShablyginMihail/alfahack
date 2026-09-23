@@ -34,6 +34,7 @@ BUILTIN_TYPES: tuple[PiiType, ...] = (
     PiiType("MILITARY_ID", "ВОЕННЫЙ_БИЛЕТ", "Военный билет"),
     PiiType("BIRTH_CERTIFICATE", "СВИДЕТЕЛЬСТВО_О_РОЖДЕНИИ", "Свидетельство о рождении"),
     PiiType("FOREIGN_NATIONAL_PASSPORT", "ПАСПОРТ_ИНОСТРАНЦА", "Паспорт иностранного гражданина"),
+    PiiType("OMS_POLICY", "ПОЛИС_ОМС", "Полис ОМС"),
 )
 
 CORE_TYPE_CODES: frozenset[str] = frozenset(pii_type.code for pii_type in BUILTIN_TYPES[:17])

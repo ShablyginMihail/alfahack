@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from pii_guard.core.context import compile_keywords
 from pii_guard.core.registry import Recognizer
-from pii_guard.recognizers.base import PatternRule, RegexRecognizer
+from pii_guard.recognizers.base import OMS_WORDS, PatternRule, RegexRecognizer
 from pii_guard.recognizers.validators import inn_valid, luhn_valid
 
 EMAIL_RE = re.compile(r"(?<!\w)[\w.+-]+@[\w.-]+\.[\w-]+(?!\w)")
@@ -25,7 +25,8 @@ CARD_GROUPED_RE = re.compile(r"(?<!\d)\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}(?!\d)"
 CARD_RUN_RE = re.compile(r"(?<!\d)\d{13,19}(?!\d)")
 CARD_RUN_16_RE = re.compile(r"(?<!\d)[2-6]\d{15}(?!\d)")
 
-INN_RUN_RE = re.compile(r"(?<!\d)(?:\d{10}|\d{12})(?!\d)")
+INN_RUN_10_RE = re.compile(r"(?<!\d)\d{10}(?!\d)")
+INN_RUN_12_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
 INN_SEPARATED_RE = re.compile(r"(?<!\d)\d{2,4}[\s-]\d{2,4}[\s-]\d{2,6}(?!\d)")
 CVV_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{3,4}(?![\s-]\d)(?!\d)")
 PIN_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{4,6}(?![\s-]\d)(?!\d)")
@@ -49,9 +50,26 @@ CARD_NEGATIVE = compile_keywords(
         "заказ",
         "накладн",
         "трек",
+        *OMS_WORDS,
     ]
 )
 INN_CONTEXT = compile_keywords(["инн"])
+INN_ORG_NEGATIVE = compile_keywords(
+    [
+        "организации",
+        "ооо",
+        "оао",
+        "зао",
+        "пао",
+        "ао",
+        "юр. лица",
+        "юридического лица",
+        "компании",
+        "предприятия",
+        "кпп",
+        "банка",
+    ]
+)
 CVV_CONTEXT = compile_keywords(
     [
         "cvv",
@@ -145,13 +163,25 @@ def _inn_rules() -> Sequence[PatternRule]:
     return (
         PatternRule(
             "INN",
-            INN_RUN_RE,
+            INN_RUN_12_RE,
             0.2,
             validator=inn_valid,
             validator_bonus=0.25,
             context=INN_CONTEXT,
             context_bonus=0.45,
             context_window=30,
+        ),
+        PatternRule(
+            "INN",
+            INN_RUN_10_RE,
+            0.2,
+            validator=inn_valid,
+            validator_bonus=0.25,
+            context=INN_CONTEXT,
+            context_bonus=0.45,
+            context_window=30,
+            negative=INN_ORG_NEGATIVE,
+            negative_penalty=0.6,
         ),
         PatternRule(
             "INN",

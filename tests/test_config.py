@@ -115,7 +115,7 @@ def test_broken_regex_error(tmp_path: Path) -> None:
         {
             "partial_specs": {},
             "custom_types": {
-                "OMS_POLICY": {
+                "CUSTOM_POLICY": {
                     "label": "ПОЛИС_ОМС",
                     "rules": [{"regex": "(", "base_score": 0.2}],
                 }
@@ -126,7 +126,7 @@ def test_broken_regex_error(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
-def test_custom_type_oms_policy(tmp_path: Path) -> None:
+def test_custom_type_policy(tmp_path: Path) -> None:
     _write_systems(
         tmp_path,
         {
@@ -139,7 +139,7 @@ def test_custom_type_oms_policy(tmp_path: Path) -> None:
         {
             "partial_specs": {},
             "custom_types": {
-                "OMS_POLICY": {
+                "CUSTOM_POLICY": {
                     "label": "ПОЛИС_ОМС",
                     "description": "Полис ОМС",
                     "rules": [
@@ -159,6 +159,13 @@ def test_custom_type_oms_policy(tmp_path: Path) -> None:
     engine = build_engine(config, Settings().recognizer_modules)
     result = engine.mask("полис ОМС 1234567890123456", PARTIAL_PROFILE)
     assert "1234567890123456" not in result.text
+
+
+def test_custom_type_vehicle_plate() -> None:
+    config = load_config(REPO_CONFIG)
+    engine = build_engine(config, Settings().recognizer_modules)
+    spans = engine.analyze("госномер А123ВС777", PARTIAL_PROFILE)
+    assert any(s.pii_type == "VEHICLE_PLATE" for s in spans)
 
 
 def test_marketing_bot_pin_rule(tmp_path: Path) -> None:

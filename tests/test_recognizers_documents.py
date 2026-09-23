@@ -321,3 +321,25 @@ def test_passport_citizen_rf_separate() -> None:
 
 def test_foreign_national_passport_citizen() -> None:
     assert "FOREIGN_NATIONAL_PASSPORT" in _types("паспорт гражданина Узбекистана AA1234567")
+
+
+def test_oms_policy_run() -> None:
+    text = "полис ОМС 7700000000000011"
+    assert "OMS_POLICY" in _types(text)
+    assert "CARD_NUMBER" not in _types(text)
+
+
+def test_oms_policy_grouped() -> None:
+    text = "полис ОМС № 5094 4567 8912 3456"
+    assert "OMS_POLICY" in _types(text)
+    assert "CARD_NUMBER" not in _types(text)
+
+
+def test_oms_policy_enn() -> None:
+    text = "единый номер полиса 1234567890123456"
+    assert "OMS_POLICY" in _types(text)
+    assert "CARD_NUMBER" not in _types(text)
+
+
+def test_card_still_recognized() -> None:
+    assert "CARD_NUMBER" in _types("карта 4276 3801 2345 6789")

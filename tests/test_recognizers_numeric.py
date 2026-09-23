@@ -215,3 +215,15 @@ def test_cvv_on_back() -> None:
 def test_card_16_digits_run_no_context() -> None:
     assert "CARD_NUMBER" in _types("Переведите на 4276380012345678")
     assert "CARD_NUMBER" not in _types("Номер договора 4276380012345678")
+
+
+def test_inn_org_not_masked() -> None:
+    assert "INN" not in _types("ИНН организации 7707083893")
+    assert "INN" not in _types("ООО «Ромашка», ИНН 7707083893")
+    assert "INN" not in _types("ИНН/КПП 7707083893/773601001")
+
+
+def test_inn_individual_masked() -> None:
+    assert "INN" in _types("ИНН 7707083893")
+    assert "INN" in _types("ИНН 500100732259")
+    assert "INN" in _types("ИНН ИП Иванова 500100732259")

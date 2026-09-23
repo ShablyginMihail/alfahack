@@ -39,6 +39,7 @@ def test_all_core_codes_present_with_labels() -> None:
         "MILITARY_ID",
         "BIRTH_CERTIFICATE",
         "FOREIGN_NATIONAL_PASSPORT",
+        "OMS_POLICY",
     }
     for code, label in EXPECTED_LABELS.items():
         assert registry.get(code).label == label
@@ -76,4 +77,4 @@ def test_register_replaces_existing() -> None:
 
 def test_builtin_types_are_frozen() -> None:
     assert all(isinstance(t, PiiType) for t in BUILTIN_TYPES)
-    assert len(BUILTIN_TYPES) == 23
+    assert len(BUILTIN_TYPES) == 24

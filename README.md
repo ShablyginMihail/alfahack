@@ -131,6 +131,7 @@ curl -X POST http://localhost:8000/process \
 | MILITARY_ID | ВОЕННЫЙ_БИЛЕТ | Военный билет |
 | BIRTH_CERTIFICATE | СВИДЕТЕЛЬСТВО_О_РОЖДЕНИИ | Свидетельство о рождении |
 | FOREIGN_NATIONAL_PASSPORT | ПАСПОРТ_ИНОСТРАНЦА | Паспорт иностранного гражданина |
+| OMS_POLICY | ПОЛИС_ОМС | Полис ОМС |
 
 ## Как устроено
 
@@ -215,16 +216,14 @@ partial_specs:
   CARD_NUMBER: {keep_start: 4, keep_end: 4}
 
 custom_types:
-  OMS_POLICY:
-    label: ПОЛИС_ОМС
-    description: Полис ОМС
+  VEHICLE_PLATE:
+    label: ГОСНОМЕР
+    description: Госномер автомобиля
     rules:
-      - regex: "(?<!\\d)\\d{16}(?!\\d)"
+      - regex: "(?<!\\w)[авекмнорстух]\\d{3}[авекмнорстух]{2}\\s?\\d{2,3}(?!\\d)"
         base_score: 0.2
-        context: [полис, омс]
+        context: [госномер, гос. номер, г/н, грз, номер автомобиля, номер машины]
         context_bonus: 0.6
-        context_window: 40
-        validator: luhn
 ```
 
 Генерация ключа системы:

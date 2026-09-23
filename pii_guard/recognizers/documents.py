@@ -7,7 +7,13 @@ from pii_guard.core.context import compile_keywords, find_keyword
 from pii_guard.core.models import Span
 from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
-from pii_guard.recognizers.base import FIELD_LABELS, PatternRule, RegexRecognizer, cut_period
+from pii_guard.recognizers.base import (
+    FIELD_LABELS,
+    OMS_WORDS,
+    PatternRule,
+    RegexRecognizer,
+    cut_period,
+)
 from pii_guard.recognizers.validators import snils_valid
 
 PASSPORT_WORD = "паспорт"
@@ -58,6 +64,9 @@ RESIDENCE_NUMBER_RE = re.compile(r"(?<!\w)(?:№|номер)\s*(\d{6,7})(?!\d)")
 
 FOREIGN_NATIONAL_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{1,2}\s*\d{6,9}(?!\d)")
 
+OMS_RUN_RE = re.compile(r"(?<!\d)\d{16}(?!\d)")
+OMS_GROUPED_RE = re.compile(r"(?<!\d)\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}(?!\d)")
+
 PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD, "серия", "серии", "номер паспорта", "пасп"])
 PASSPORT_COMBINED_CONTEXT = compile_keywords(
     [PASSPORT_WORD, "серия", "серии", "номер паспорта", "пасп", "выдан"]
@@ -97,6 +106,8 @@ FOREIGN_NATIONAL_CONTEXT = compile_keywords(_FOREIGN_NATIONAL_WORDS)
 DOCUMENT_CONTEXT = compile_keywords(
     [*_DRIVER_WORDS, *_MILITARY_WORDS, *_BIRTH_WORDS, *_RESIDENCE_WORDS]
 )
+
+OMS_CONTEXT = compile_keywords(OMS_WORDS)
 
 ISSUER_MARKERS = (
     r"(?:выдан|выдана|выдано|кем выдан|орган выдачи|выдавший орган|орган, выдавший паспорт)"
@@ -356,6 +367,27 @@ def _foreign_national_rules() -> Sequence[PatternRule]:
     )
 
 
+def _oms_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule(
+            "OMS_POLICY",
+            OMS_RUN_RE,
+            0.15,
+            context=OMS_CONTEXT,
+            context_bonus=0.8,
+            context_window=60,
+        ),
+        PatternRule(
+            "OMS_POLICY",
+            OMS_GROUPED_RE,
+            0.15,
+            context=OMS_CONTEXT,
+            context_bonus=0.8,
+            context_window=60,
+        ),
+    )
+
+
 def _extract_issuer_value(norm: str, start: int) -> str:
     limit = min(len(norm), start + _ISSUER_SCAN)
     candidates: list[int] = []
@@ -424,5 +456,6 @@ def recognizers() -> list[Recognizer]:
         RegexRecognizer("birth_certificate", _birth_rules()),
         RegexRecognizer("residence_permit", _residence_rules()),
         RegexRecognizer("foreign_national_passport", _foreign_national_rules()),
+        RegexRecognizer("oms_policy", _oms_rules()),
         PassportIssuerRecognizer(),
     ]
