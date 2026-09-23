@@ -108,7 +108,32 @@ _CVV_WORDS = (
     "с оборота",
 )
 CVV_CONTEXT = compile_keywords(_CVV_WORDS)
-CVV_FAR_RE = re.compile(rf"{CVV_CONTEXT.pattern}[^\d]{{0,60}}(\d{{3}})(?![\s-]\d)(?!\d)")
+_CVV_NUMBER_LABELS = (
+    "заказ",
+    "номер",
+    "номеру",
+    "телефон",
+    "тел",
+    "счет",
+    "договор",
+    "очереди",
+    "квартира",
+    "кв",
+    "дом",
+    "офис",
+    "страница",
+    "стр",
+    "пункт",
+    "глава",
+)
+_CVV_LABEL_ALT = "|".join(
+    re.escape(word) for word in sorted(_CVV_NUMBER_LABELS, key=len, reverse=True)
+)
+CVV_FAR_RE = re.compile(
+    rf"{CVV_CONTEXT.pattern}"
+    rf"(?![^\d]{{0,60}}(?:{_CVV_LABEL_ALT})(?!\w)(?:\s+\w+)?\s*\d{{3}}(?![\s-]\d)(?!\d))"
+    rf"[^\d]{{0,60}}(\d{{3}})(?![\s-]\d)(?!\d)"
+)
 CVV_CONFIRM_RE = re.compile(
     r"(?<!\w)(?:код\s+(?:подтверждения|потверждения|из\s+смс)|потверждения)"
     r"\s*:?\s*(\d{3})(?![\s-]\d)(?!\d)"

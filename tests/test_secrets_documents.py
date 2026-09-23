@@ -21,6 +21,9 @@ CVV_CONFIRM_NO_PAY = "код подтверждения 382"
 CVV_CONFIRM_SMS_NO_PAY = "код из смс 382"
 CVV_SHORT = "CVV: 12."
 CVV_ERROR = "код ошибки 404"
+CVV_LABEL_ORDER = "Код безопасности не нужен, заказ 123 доставлен вчера"
+CVV_LABEL_NUMBER = "Никогда не сообщайте CVV никому. Звоните по номеру 900"
+CVV_KEEP_CODE = "зачем CVC нужен? код 453"
 
 PASSPORT_SERIES_ACC = "укажите серию и номер: 2300515101"
 PASSPORT_SERIES_INSTR = "укажите серией и номером: 2300515101"
@@ -32,6 +35,8 @@ PASSPORT_RUN_ORDER = "Номер заказа: 4510123456."
 PASSPORT_NUMBER_WORDS = "паспорт, номер был 122648"
 PASSPORT_NUMBER_COLON = "паспорт, номер: 122648"
 PASSPORT_SERIES_TRAP = "Серия 451 номер 12345."
+PASSPORT_NUMBER_QUEUE = "Номер паспорта не нужен, ваш номер в очереди 123456"
+PASSPORT_NUMBER_WAS = "потерял паспорт, серию не помню, но номер был 122648"
 
 INN_INSTR = "риелтор с инном 772501234504"
 INN_ACC = "риелтор с инну 772501234504"
@@ -107,6 +112,18 @@ def test_cvv_error_code_not_masked() -> None:
     assert "CVV" not in _types(CVV_ERROR)
 
 
+def test_cvv_label_order_not_masked() -> None:
+    assert "CVV" not in _types(CVV_LABEL_ORDER)
+
+
+def test_cvv_label_number_not_masked() -> None:
+    assert "CVV" not in _types(CVV_LABEL_NUMBER)
+
+
+def test_cvv_keep_code() -> None:
+    _span_at(CVV_KEEP_CODE, "453", "CVV")
+
+
 def test_passport_series_accusative() -> None:
     _span_at(PASSPORT_SERIES_ACC, "2300515101", "PASSPORT")
 
@@ -145,6 +162,14 @@ def test_passport_number_colon() -> None:
 
 def test_passport_series_trap_not_masked() -> None:
     assert "PASSPORT" not in _types(PASSPORT_SERIES_TRAP)
+
+
+def test_passport_number_queue_not_masked() -> None:
+    assert "PASSPORT" not in _types(PASSPORT_NUMBER_QUEUE)
+
+
+def test_passport_number_was() -> None:
+    _span_at(PASSPORT_NUMBER_WAS, "122648", "PASSPORT")
 
 
 def test_inn_instrumental() -> None:
