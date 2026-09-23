@@ -171,7 +171,9 @@ curl -X POST http://localhost:8000/process \
 - gunicorn с uvicorn-воркерами, `preload_app`;
 - движок выполняется в `asyncio.to_thread`, чтобы не блокировать воркер;
 - одновременные запросы ограничены (`PII_MAX_CONCURRENT_PROCESS`), сверх лимита —
-  `429` с `Retry-After`.
+  `429` с `Retry-After`;
+- суммарный объём текста в обработке ограничен (`PII_MAX_INFLIGHT_CHARS`), сверх
+  объёма — тоже `429` с `Retry-After`.
 
 ## Настройка систем-потребителей
 
@@ -299,6 +301,7 @@ OpenAI-совместимый прокси. Требует заголовок `X
 | `PII_MAPPING_TTL_SECONDS` | `1800` | Время жизни соответствий, секунд |
 | `PII_MAX_BODY_BYTES` | `4000000` | Максимальный размер тела запроса |
 | `PII_MAX_CONCURRENT_PROCESS` | `100` | Одновременных запросов на воркер; сверх — 429 |
+| `PII_MAX_INFLIGHT_CHARS` | `600000` | Максимальный суммарный объём текста в обработке; сверх — 429 |
 | `PII_RETRY_AFTER_SECONDS` | `1` | Значение `Retry-After` в ответе 429 |
 | `PII_LOG_LEVEL` | `INFO` | Уровень логирования |
 | `PII_CONFIG_DIR` | `config` | Каталог конфигурации |

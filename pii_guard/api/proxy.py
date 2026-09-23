@@ -52,7 +52,8 @@ async def chat_completions(
     name, profile = system
     settings = request.app.state.settings
     gate = request.app.state.concurrency_gate
-    if not gate.try_enter():
+    weight = sum(len(m.content) for m in req.messages)
+    if not gate.try_enter(weight):
         raise HTTPException(
             status_code=429,
             detail={"error": "overloaded"},
@@ -159,4 +160,4 @@ async def chat_completions(
             },
         }
     finally:
-        gate.exit()
+        gate.exit(weight)

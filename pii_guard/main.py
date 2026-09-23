@@ -215,7 +215,9 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = settings
-    app.state.concurrency_gate = ConcurrencyGate(settings.max_concurrent_process)
+    app.state.concurrency_gate = ConcurrencyGate(
+        settings.max_concurrent_process, settings.max_inflight_chars
+    )
 
     app.add_middleware(BodyLimitMiddleware, max_body_bytes=settings.max_body_bytes)
     app.add_middleware(RequestContextMiddleware)

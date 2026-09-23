@@ -53,7 +53,8 @@ async def mask(
     name, profile = system
     settings = request.app.state.settings
     gate = request.app.state.concurrency_gate
-    if not gate.try_enter():
+    weight = len(req.text)
+    if not gate.try_enter(weight):
         raise HTTPException(
             status_code=429,
             detail={"error": "overloaded"},
@@ -99,7 +100,7 @@ async def mask(
         )
         return MaskResponse(session_id=session_id, masked_text=result.text, entities=entities)
     finally:
-        gate.exit()
+        gate.exit(weight)
 
 
 @router.post("/api/v1/unmask", response_model=UnmaskResponse)

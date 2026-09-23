@@ -23,7 +23,8 @@ class ProcessResponse(BaseModel):
 async def process(req: ProcessRequest, request: Request) -> ProcessResponse:
     settings = request.app.state.settings
     gate = request.app.state.concurrency_gate
-    if not gate.try_enter():
+    weight = len(req.payload)
+    if not gate.try_enter(weight):
         raise HTTPException(
             status_code=429,
             detail={"error": "overloaded"},
@@ -45,4 +46,4 @@ async def process(req: ProcessRequest, request: Request) -> ProcessResponse:
         )
         return ProcessResponse(result=outcome.result)
     finally:
-        gate.exit()
+        gate.exit(weight)
