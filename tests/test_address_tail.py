@@ -2,13 +2,19 @@ from pii_guard.core.normalize import Document
 from pii_guard.core.service_words import SERVICE_WORDS
 from pii_guard.recognizers.address import AddressRecognizer
 
+UL = "ул."
+LENINA = "Ленина"
+HOUSE_45 = "45"
+HOUSE_23 = "23"
+KV = "кв"
+
 OFFICE_TRAP_1 = "Наш офис расположен по адресу: г. Москва, ул. Тверская, д. 1."
 OFFICE_TRAP_2 = (
     "Александр Пушкин работает в офисе на Тверской улице. "
     "Адрес офиса: г. Москва, ул. Тверская, д. 1."
 )
 ENTRANCE_CHAIN = "Челябинск, ул. Кирова, д. 23, стр. 2, кв. 67, подъезд 4"
-ENTRANCE_AFTER_CHAIN = "Уфа, ул. Ленина, д. 56, кв. 89, 2 подъезд"
+ENTRANCE_AFTER_CHAIN = f"Уфа, {UL} {LENINA}, д. 56, кв. 89, 2 подъезд"
 
 
 def _masked(text: str) -> set[str]:
@@ -18,31 +24,31 @@ def _masked(text: str) -> set[str]:
 
 
 def test_house_after_street_marker() -> None:
-    assert _masked("на ул. Ленина 45") == {"Ленина", "45"}
+    assert _masked(f"на {UL} {LENINA} {HOUSE_45}") == {LENINA, HOUSE_45}
 
 
 def test_house_after_street_corps() -> None:
-    assert _masked("ул. Строителей 17к3") == {"Строителей", "17к3"}
+    assert _masked(f"{UL} Строителей 17к3") == {"Строителей", "17к3"}
 
 
 def test_house_after_street_trailing_word() -> None:
-    assert _masked("ул. Садовая 18 течёт батарея") == {"Садовая", "18"}
+    assert _masked(f"{UL} Садовая 18 течёт батарея") == {"Садовая", "18"}
 
 
 def test_house_after_street_with_apartment() -> None:
-    assert _masked("ул. Ленина 45 кв 12") == {"Ленина", "45", "12"}
+    assert _masked(f"{UL} {LENINA} {HOUSE_45} {KV} 12") == {LENINA, HOUSE_45, "12"}
 
 
 def test_corps_without_dot() -> None:
-    assert _masked("ул. Космонавтов 15 корпус 3") == {"Космонавтов", "15", "3"}
+    assert _masked(f"{UL} Космонавтов 15 корпус 3") == {"Космонавтов", "15", "3"}
 
 
 def test_corps_without_dot_chain() -> None:
-    assert _masked("ул. Тургенева 9 корпус 2 кв 55") == {"Тургенева", "9", "2", "55"}
+    assert _masked(f"{UL} Тургенева 9 корпус 2 {KV} 55") == {"Тургенева", "9", "2", "55"}
 
 
 def test_corps_short_without_dot() -> None:
-    assert _masked("проспект Мира 23 корп 5") == {"Мира", "23", "5"}
+    assert _masked("проспект Мира 23 корп 5") == {"Мира", HOUSE_23, "5"}
 
 
 def test_house_after_square() -> None:
@@ -50,19 +56,24 @@ def test_house_after_square() -> None:
 
 
 def test_entrance_in_chain() -> None:
-    assert _masked(ENTRANCE_CHAIN) == {"Челябинск", "Кирова", "23", "2", "67", "4"}
+    assert _masked(ENTRANCE_CHAIN) == {"Челябинск", "Кирова", HOUSE_23, "2", "67", "4"}
 
 
 def test_entrance_after_in_chain() -> None:
-    assert _masked(ENTRANCE_AFTER_CHAIN) == {"Уфа", "Ленина", "56", "89", "2"}
+    assert _masked(ENTRANCE_AFTER_CHAIN) == {"Уфа", LENINA, "56", "89", "2"}
 
 
 def test_entrance_short_after() -> None:
-    assert _masked("кв. 23, 4 под") == {"23", "4"}
+    assert _masked(f"{KV}. {HOUSE_23}, 4 под") == {HOUSE_23, "4"}
 
 
 def test_street_before_tail() -> None:
-    assert _masked("тверь, вокзальная 45, кв 23") == {"тверь", "вокзальная", "45", "23"}
+    assert _masked(f"тверь, вокзальная {HOUSE_45}, {KV} {HOUSE_23}") == {
+        "тверь",
+        "вокзальная",
+        HOUSE_45,
+        HOUSE_23,
+    }
 
 
 def test_office_trap_1_not_masked() -> None:
@@ -97,4 +108,10 @@ def test_service_words_contain_entrance() -> None:
 
 
 def test_service_word_is_not_a_street_before_tail() -> None:
-    assert _masked("ул. Чехова 30 корпус 5 кв 12 подьезд 1") == {"Чехова", "30", "5", "12", "1"}
+    assert _masked(f"{UL} Чехова 30 корпус 5 {KV} 12 подьезд 1") == {
+        "Чехова",
+        "30",
+        "5",
+        "12",
+        "1",
+    }
