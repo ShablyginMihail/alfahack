@@ -10,7 +10,6 @@ import structlog
 from pii_guard.core.models import MappingRecord
 from pii_guard.store.base import MappingStore
 
-_RETRYABLE = (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError, OSError)
 _T = TypeVar("_T")
 
 
@@ -59,7 +58,7 @@ class FailoverStore:
             if self._clock() >= self._degraded_until:
                 try:
                     result = await op(self._primary)
-                except _RETRYABLE:
+                except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError, OSError):
                     self._degraded_until = self._clock() + self._retry_after
                     self._warn()
                     return await op(self._fallback)
@@ -68,7 +67,7 @@ class FailoverStore:
             return await op(self._fallback)
         try:
             return await op(self._primary)
-        except _RETRYABLE:
+        except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError, OSError):
             self._degraded = True
             self._degraded_until = self._clock() + self._retry_after
             self._warn()
