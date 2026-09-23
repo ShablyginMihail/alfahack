@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from pii_guard.core.demasking import replace_masked_fragments
+from pii_guard.core.demasking import masked_regions, replace_masked_fragments
 from pii_guard.core.models import Replacement
 from pii_guard.core.policy import Profile
 from pii_guard.llm.client import LLMError, MockLLM
@@ -92,6 +92,13 @@ async def chat_completions(
         masked_joined = SEP.join(message["content"] for message in masked_messages)
         strict_profile = dataclasses.replace(profile, strict=True)
         recheck_spans = await asyncio.to_thread(engine.analyze, masked_joined, strict_profile)
+        if profile.mask_style == "synthetic":
+            regions = masked_regions(masked_joined, replacements)
+            recheck_spans = [
+                span
+                for span in recheck_spans
+                if not any(span.start < end and start < span.end for start, end in regions)
+            ]
         recheck_masked = len(recheck_spans)
         if recheck_spans:
             recheck_result = await asyncio.to_thread(

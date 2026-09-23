@@ -102,6 +102,19 @@ def test_unknown_mask_style_error(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
+def test_synthetic_mask_style_valid(tmp_path: Path) -> None:
+    _write_systems(
+        tmp_path,
+        {
+            "defaults": {"mask_style": "partial"},
+            "systems": {"checker": {"mask_style": "synthetic"}},
+        },
+    )
+    _write_pii_types(tmp_path, _minimal_pii_types())
+    config = load_config(tmp_path)
+    assert config.profiles()["checker"].mask_style == "synthetic"
+
+
 def test_broken_regex_error(tmp_path: Path) -> None:
     _write_systems(
         tmp_path,

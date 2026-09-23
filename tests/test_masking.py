@@ -5,7 +5,7 @@ import string
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from pii_guard.core.demasking import restore, unmask
+from pii_guard.core.demasking import replace_masked_fragments, restore, unmask
 from pii_guard.core.masking import (
     DEFAULT_PARTIAL_SPECS,
     DefaultMasker,
@@ -24,6 +24,7 @@ IVANOV = "Иванов Иван"
 PETROV = "Петров Пётр"
 PHONE_PARENS = "+7 (916) 123-45-67"
 IVANOV_FULL = "Иванов Иван Иванович"
+PHONE_PLAIN = "+7 916 123-45-67"
 
 
 def _span(start: int, end: int, pii_type: str) -> Span:
@@ -190,7 +191,7 @@ def test_token_style_distinct_values_distinct_numbers() -> None:
 def test_token_style_normalized_phone_same_token() -> None:
     text = "+7 916 123-45-67 и +79161234567"
     spans = [
-        _span_at(text, "+7 916 123-45-67", "PHONE"),
+        _span_at(text, PHONE_PLAIN, "PHONE"),
         _span_at(text, "+79161234567", "PHONE"),
     ]
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="token"))
@@ -293,3 +294,53 @@ def test_restore_roundtrip_token(data: tuple[str, tuple[Span, ...]]) -> None:
     text, spans = data
     result = _masker().apply(text, spans, Profile(name="checker", mask_style="token"))
     assert restore(result.text, result.replacements) == text
+
+
+SYNTHETIC_TEXT = "Клиент Иванов Иван Иванович, телефон +7 916 123-45-67, карта 4276 3801 2345 6789"
+
+
+def _synthetic_spans(text: str) -> list[Span]:
+    return [
+        _span_at(text, IVANOV_FULL, "PERSON"),
+        _span_at(text, PHONE_PLAIN, "PHONE"),
+        _span_at(text, "4276 3801 2345 6789", "CARD_NUMBER"),
+    ]
+
+
+def test_synthetic_style_replaces_values() -> None:
+    result = _masker().apply(
+        SYNTHETIC_TEXT,
+        _synthetic_spans(SYNTHETIC_TEXT),
+        Profile(name="checker", mask_style="synthetic"),
+    )
+    assert IVANOV_FULL not in result.text
+    assert PHONE_PLAIN not in result.text
+    assert "4276 3801 2345 6789" not in result.text
+    assert {r.pii_type for r in result.replacements} == {"PERSON", "PHONE", "CARD_NUMBER"}
+    for r in result.replacements:
+        assert r.masked != r.original
+
+
+def test_synthetic_unmask_roundtrip() -> None:
+    result = _masker().apply(
+        SYNTHETIC_TEXT,
+        _synthetic_spans(SYNTHETIC_TEXT),
+        Profile(name="checker", mask_style="synthetic"),
+    )
+    record = MappingRecord("fp", result.text, result.replacements)
+    assert unmask(result.text, record) == SYNTHETIC_TEXT
+
+
+def test_synthetic_replace_masked_fragments() -> None:
+    text = "Клиент Иванов Иван Иванович, телефон +7 916 123-45-67"
+    spans = [
+        _span_at(text, IVANOV_FULL, "PERSON"),
+        _span_at(text, PHONE_PLAIN, "PHONE"),
+    ]
+    result = _masker().apply(text, spans, Profile(name="checker", mask_style="synthetic"))
+    person_masked = next(r.masked for r in result.replacements if r.pii_type == "PERSON")
+    phone_masked = next(r.masked for r in result.replacements if r.pii_type == "PHONE")
+    modified = f"Звонил {phone_masked} по вопросу, представился {person_masked}"
+    restored = replace_masked_fragments(modified, result.replacements)
+    assert IVANOV_FULL in restored
+    assert PHONE_PLAIN in restored

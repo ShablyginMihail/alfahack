@@ -14,10 +14,12 @@ from tests.helpers import make_settings, write_config
 
 TOKEN_KEY = secrets.token_urlsafe(16)
 NO_UNMASK_KEY = secrets.token_urlsafe(16)
+SYNTHETIC_KEY = secrets.token_urlsafe(16)
 
 CHAT_PATH = "/v1/chat/completions"
 IVANOV = "Иванов"
 IVANOV_FULL = "Иванов Иван Иванович"
+PHONE_PLAIN = "+7 916 123-45-67"
 
 
 def _sha(key: str) -> str:
@@ -41,6 +43,13 @@ def _systems_config() -> dict:
                 "mask_style": "token",
                 "unmask": False,
                 "api_key_sha256": _sha(NO_UNMASK_KEY),
+            },
+            "synthetic-sys": {
+                "enabled": True,
+                "pii_types": "all",
+                "mask_style": "synthetic",
+                "unmask": True,
+                "api_key_sha256": _sha(SYNTHETIC_KEY),
             },
         },
     }
@@ -96,7 +105,28 @@ async def test_chat_token_unmask_roundtrip(tmp_path) -> None:
         assert "916" not in masked
         answer = body["choices"][0]["message"]["content"]
         assert IVANOV_FULL in answer
-        assert "+7 916 123-45-67" in answer
+        assert PHONE_PLAIN in answer
+
+
+@pytest.mark.asyncio
+async def test_chat_synthetic_unmask_roundtrip(tmp_path) -> None:
+    settings = _settings(tmp_path)
+    async with _client_for(settings) as (_app, client):
+        content = "Клиент Иванов Иван Иванович, телефон +7 916 123-45-67"
+        resp = await client.post(
+            CHAT_PATH,
+            json=_chat([{"role": "user", "content": content}]),
+            headers={"X-API-Key": SYNTHETIC_KEY},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        masked = body["pii_guard"]["masked_messages"][0]["content"]
+        assert IVANOV_FULL not in masked
+        assert PHONE_PLAIN not in masked
+        assert body["pii_guard"]["recheck_masked"] == 0
+        answer = body["choices"][0]["message"]["content"]
+        assert IVANOV_FULL in answer
+        assert PHONE_PLAIN in answer
 
 
 @pytest.mark.asyncio

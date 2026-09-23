@@ -23,6 +23,11 @@ systems:
     rules:
       - type: PIN
         requires_any: [CARD_NUMBER]
+  llm-assistant:
+    enabled: true
+    pii_types: all
+    mask_style: synthetic
+    api_key_sha256: 58d612865c4e564a55771ae8638b070899244b8f2531ed487d8f5e6c64c4726c
   support-chat:
     enabled: true
     pii_types: all

@@ -36,6 +36,22 @@ def contains_masked_fragments(text: str, replacements: Sequence[Replacement]) ->
     return False
 
 
+def masked_regions(text: str, replacements: Sequence[Replacement]) -> list[tuple[int, int]]:
+    regions: list[tuple[int, int]] = []
+    for replacement in replacements:
+        masked = replacement.masked
+        if not masked or not any(ch.isalnum() for ch in masked):
+            continue
+        start = 0
+        while True:
+            idx = text.find(masked, start)
+            if idx == -1:
+                break
+            regions.append((idx, idx + len(masked)))
+            start = idx + len(masked)
+    return regions
+
+
 def replace_masked_fragments(text: str, replacements: Sequence[Replacement]) -> str:
     by_masked: dict[str, list[str]] = {}
     for replacement in replacements:

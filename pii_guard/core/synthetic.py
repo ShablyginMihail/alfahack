@@ -472,14 +472,15 @@ class SyntheticGenerator:
         return f"ОУФМС России по г. {self._rng.choice(_CITIES)}"
 
     def _generic(self, original: str, part: str | None = None) -> str:
-        chars = list(original)
-        for i, ch in enumerate(chars):
-            if ch.isdigit():
-                chars[i] = str(self._rng.randint(0, 9))
-            elif ch.isalpha():
-                if self._is_cyrillic(ch):
-                    pool = _CYRILLIC_LOWER if ch.islower() else _CYRILLIC_UPPER
-                else:
-                    pool = _LATIN_LOWER if ch.islower() else _LATIN_UPPER
-                chars[i] = self._rng.choice(pool)
-        return "".join(chars)
+        return "".join(self._random_like(ch) for ch in original)
+
+    def _random_like(self, ch: str) -> str:
+        if ch.isdigit():
+            return str(self._rng.randint(0, 9))
+        if not ch.isalpha():
+            return ch
+        if self._is_cyrillic(ch):
+            pool = _CYRILLIC_LOWER if ch.islower() else _CYRILLIC_UPPER
+        else:
+            pool = _LATIN_LOWER if ch.islower() else _LATIN_UPPER
+        return self._rng.choice(pool)

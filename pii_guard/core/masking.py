@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pii_guard.core.models import MaskResult, Replacement, Span
 from pii_guard.core.normalize import normalize
 from pii_guard.core.policy import Profile
+from pii_guard.core.synthetic import SyntheticGenerator
 from pii_guard.core.types import TypeRegistry
 
 
@@ -150,6 +151,12 @@ class DefaultMasker:
 
             def masker(span: Span, original: str) -> str:
                 return self._token_mask(span, original, numbering)
+
+        elif style == "synthetic":
+            generator = SyntheticGenerator()
+
+            def masker(span: Span, original: str) -> str:
+                return generator.value(span.pii_type, original, span.part)
 
         else:
             raise ValueError(f"unknown mask_style: {style!r}")

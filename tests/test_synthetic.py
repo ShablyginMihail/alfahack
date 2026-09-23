@@ -12,6 +12,8 @@ INN_10 = "7707083893"
 INN_12 = "500100732259"
 SNILS_TEXT = "112-233-445 95"
 DATE_TEXT = "12.05.2015"
+MOSCOW = "Москва"
+RUSSIA = "Россия"
 
 
 def _gen() -> SyntheticGenerator:
@@ -29,7 +31,7 @@ def test_person_format() -> None:
 def test_person_initials() -> None:
     value = _gen().value("PERSON", "И. И. Иванов")
     assert value != "И. И. Иванов"
-    assert re.fullmatch(r"[А-Я]\. ?[А-Я]\. [А-Я][а-я]+", value)
+    assert re.fullmatch(r"[А-Я]\. ?[А-Я]\. [А-ЯЁ][а-яё]+", value)
 
 
 def test_cardholder_format() -> None:
@@ -96,8 +98,8 @@ def test_passport_issue_date_format() -> None:
 
 
 def test_address_city() -> None:
-    value = _gen().value("ADDRESS", "Москва", part="city")
-    assert value != "Москва"
+    value = _gen().value("ADDRESS", MOSCOW, part="city")
+    assert value != MOSCOW
     assert value[:1].isupper()
 
 
@@ -108,15 +110,15 @@ def test_address_street() -> None:
 
 
 def test_birth_place() -> None:
-    value = _gen().value("BIRTH_PLACE", "Москва")
-    assert value != "Москва"
+    value = _gen().value("BIRTH_PLACE", MOSCOW)
+    assert value != MOSCOW
     assert value[:1].isupper()
 
 
 def test_citizenship() -> None:
-    value = _gen().value("CITIZENSHIP", "Россия")
-    assert value != "Россия"
-    assert value in ("Россия", "Беларусь", "Казахстан", "Армения", "Узбекистан")
+    value = _gen().value("CITIZENSHIP", RUSSIA)
+    assert value != RUSSIA
+    assert value in (RUSSIA, "Беларусь", "Казахстан", "Армения", "Узбекистан")
 
 
 def test_passport_issuer() -> None:
@@ -142,4 +144,6 @@ def test_deterministic_and_distinct() -> None:
 
 def test_person_deterministic() -> None:
     gen = _gen()
-    assert gen.value("PERSON", PERSON_FULL) == gen.value("PERSON", PERSON_FULL)
+    first = gen.value("PERSON", PERSON_FULL)
+    second = gen.value("PERSON", PERSON_FULL)
+    assert first == second
