@@ -33,6 +33,18 @@ def test_house_after_street_with_apartment() -> None:
     assert _masked("ул. Ленина 45 кв 12") == {"Ленина", "45", "12"}
 
 
+def test_corps_without_dot() -> None:
+    assert _masked("ул. Космонавтов 15 корпус 3") == {"Космонавтов", "15", "3"}
+
+
+def test_corps_without_dot_chain() -> None:
+    assert _masked("ул. Тургенева 9 корпус 2 кв 55") == {"Тургенева", "9", "2", "55"}
+
+
+def test_corps_short_without_dot() -> None:
+    assert _masked("проспект Мира 23 корп 5") == {"Мира", "23", "5"}
+
+
 def test_house_after_square() -> None:
     assert _masked("Краснодар, Красная площадь, 1") == {"Краснодар", "Красная", "1"}
 
