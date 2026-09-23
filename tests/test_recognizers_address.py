@@ -187,3 +187,31 @@ def test_delivery_point_prospekt_not_masked_full() -> None:
     assert _mask_full("Заказ доставят в пункт выдачи на Ленинском проспекте") == (
         "Заказ доставят в пункт выдачи на Ленинском проспекте"
     )
+
+
+def test_office_address_not_masked() -> None:
+    text = (
+        "Александр Пушкин работает в офисе на Тверской улице. "
+        "Адрес офиса: г. Москва, ул. Тверская, д. 1."
+    )
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "ADDRESS"]
+    assert spans == []
+
+
+def test_our_office_address_not_masked() -> None:
+    text = "Наш офис расположен по адресу: г. Москва, ул. Тверская, д. 1."
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "ADDRESS"]
+    assert spans == []
+
+
+def test_residence_address_masked() -> None:
+    text = "Адрес проживания: г. Москва, ул. Тверская, д. 10, кв. 25."
+    assert _mask(text) != text
+
+
+def test_pgt_ivanino_recognized() -> None:
+    assert _mask("пгт. Иванино") != "пгт. Иванино"
+
+
+def test_ul_lenina_recognized() -> None:
+    assert _mask("ул. Ленина") != "ул. Ленина"

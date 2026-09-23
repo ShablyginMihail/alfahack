@@ -5,6 +5,14 @@ from pii_guard.core.types import default_type_registry
 from pii_guard.recognizers.numeric import recognizers
 from tests.helpers import PARTIAL_PROFILE
 
+INN_ORG = "7707083893"
+INN_ORG_LABELED = f"ИНН {INN_ORG}"
+
+CVV_VALUE = "123"
+PIN_VALUE = "4821"
+CVV_LABELED = f"CVV {CVV_VALUE}"
+PIN_LABELED = "ПИН 1234"
+
 
 def _engine() -> Engine:
     registry = RecognizerRegistry()
@@ -127,7 +135,7 @@ def test_card_13_digits_valid_masked() -> None:
 
 
 def test_inn_with_label() -> None:
-    assert _mask("ИНН 7707083893") == "ИНН 77******93"
+    assert _mask(INN_ORG_LABELED) == "ИНН 77******93"
 
 
 def test_inn_12_digits_with_label() -> None:
@@ -155,7 +163,7 @@ def test_cvv_code_security() -> None:
 
 
 def test_pin_short() -> None:
-    assert _mask("ПИН 1234") == "ПИН ****"
+    assert _mask(PIN_LABELED) == "ПИН ****"
 
 
 def test_pin_code_hyphen() -> None:
@@ -182,7 +190,7 @@ def test_cvv_case_insensitive() -> None:
 
 
 def test_pin_case_insensitive() -> None:
-    assert _mask("ПИН 1234") == "ПИН ****"
+    assert _mask(PIN_LABELED) == "ПИН ****"
     assert _mask("Пин 1234") == "Пин ****"
 
 
@@ -228,13 +236,65 @@ def test_card_16_digits_run_no_context() -> None:
     assert "CARD_NUMBER" not in _types("Номер договора 4276380012345678")
 
 
-def test_inn_org_not_masked() -> None:
-    assert "INN" not in _types("ИНН организации 7707083893")
-    assert "INN" not in _types("ООО «Ромашка», ИНН 7707083893")
-    assert "INN" not in _types("ИНН/КПП 7707083893/773601001")
+def test_inn_org_masked() -> None:
+    assert "INN" in _types(f"ИНН организации {INN_ORG}")
+    assert "INN" in _types(f"ООО «Ромашка», {INN_ORG_LABELED}")
+    assert "INN" in _types(f"ИНН/КПП {INN_ORG}/773601001")
 
 
 def test_inn_individual_masked() -> None:
-    assert "INN" in _types("ИНН 7707083893")
+    assert "INN" in _types(INN_ORG_LABELED)
     assert "INN" in _types("ИНН 500100732259")
     assert "INN" in _types("ИНН ИП Иванова 500100732259")
+
+
+def _assert_type_after(text: str, label: str, value: str, pii_type: str) -> None:
+    spans = _engine().analyze(text, PARTIAL_PROFILE)
+    label_pos = text.index(label)
+    start = text.index(value, label_pos)
+    end = start + len(value)
+    assert any(s.pii_type == pii_type and s.start == start and s.end == end for s in spans), (
+        f"no {pii_type} span at {value!r} after {label!r} in {text!r}"
+    )
+
+
+def test_cvv_pin_resolved_by_distance() -> None:
+    text = f"Паспорт: 4510 123456; карта 4276380012345678; {CVV_LABELED}; PIN {PIN_VALUE}."
+    _assert_type_after(text, "PIN", PIN_VALUE, "PIN")
+    _assert_type_after(text, "CVV", CVV_VALUE, "CVV")
+
+
+def test_cvv_pin_resolved_by_distance_2() -> None:
+    text = f"Проверьте платёж по карте 4276 3800 1234 5678, {CVV_LABELED}, PIN {PIN_VALUE}."
+    _assert_type_after(text, "PIN", PIN_VALUE, "PIN")
+    _assert_type_after(text, "CVV", CVV_VALUE, "CVV")
+
+
+def test_cvv_pin_resolved_pin_first() -> None:
+    text = f"PIN {PIN_VALUE}, {CVV_LABELED}"
+    _assert_type_after(text, "PIN", PIN_VALUE, "PIN")
+    _assert_type_after(text, "CVV", CVV_VALUE, "CVV")
+
+
+def test_cvv_alone() -> None:
+    assert "CVV" in _types(CVV_LABELED)
+
+
+def test_pin_alone() -> None:
+    assert "PIN" in _types(PIN_LABELED)
+
+
+def test_service_email_org_context_not_masked() -> None:
+    assert "EMAIL" not in _types("Публичная почта отдела: support@example.com.")
+
+
+def test_service_email_no_context_masked() -> None:
+    assert "EMAIL" in _types("Напишите на support@example.com")
+
+
+def test_personal_email_masked() -> None:
+    assert "EMAIL" in _types("Почта клиента: ivanov.ivan@example.com")
+
+
+def test_personal_email_in_org_context_masked() -> None:
+    assert "EMAIL" in _types("Почта отдела: ivanov@company.ru")

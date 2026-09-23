@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
-from pii_guard.core.context import compile_keywords
+from pii_guard.core.context import compile_keywords, find_keyword
+from pii_guard.core.models import Span
+from pii_guard.core.normalize import Document
 from pii_guard.core.registry import Recognizer
 from pii_guard.recognizers.base import OMS_WORDS, PatternRule, RegexRecognizer
 from pii_guard.recognizers.validators import inn_valid, luhn_valid
 
-EMAIL_RE = re.compile(r"(?<!\w)[\w.+-]+@[\w.-]+\.[\w-]+(?!\w)")
+SERVICE_LOCAL = (
+    r"(?:support|info|help|noreply|no-reply|admin|office|sales|hr|contact|press|"
+    r"service|feedback|mail|hello|team|order)"
+)
+EMAIL_RE = re.compile(rf"(?<!\w)(?!{SERVICE_LOCAL}@)[\w.+-]+@[\w.-]+\.[\w-]+(?!\w)")
+SERVICE_EMAIL_RE = re.compile(rf"(?<!\w){SERVICE_LOCAL}@[\w.-]+\.[\w-]+(?!\w)")
 
 PHONE_PLUS7_RE = re.compile(
     r"(?<!\d)\+7[\s.\-]*\(?(?!800)\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{2}[\s.\-]*\d{2}(?!\d)"
@@ -25,8 +32,7 @@ CARD_GROUPED_RE = re.compile(r"(?<!\d)\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}(?!\d)"
 CARD_RUN_RE = re.compile(r"(?<!\d)\d{13,19}(?!\d)")
 CARD_RUN_16_RE = re.compile(r"(?<!\d)[2-6]\d{15}(?!\d)")
 
-INN_RUN_10_RE = re.compile(r"(?<!\d)\d{10}(?!\d)")
-INN_RUN_12_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
+INN_RUN_RE = re.compile(r"(?<!\d)(?:\d{10}|\d{12})(?!\d)")
 INN_SEPARATED_RE = re.compile(r"(?<!\d)\d{2,4}[\s-]\d{2,4}[\s-]\d{2,6}(?!\d)")
 CVV_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{3,4}(?![\s-]\d)(?!\d)")
 PIN_RE = re.compile(r"(?<!\d)(?<!(?<![^\W\d_])\d[\s-])\d{4,6}(?![\s-]\d)(?!\d)")
@@ -54,22 +60,6 @@ CARD_NEGATIVE = compile_keywords(
     ]
 )
 INN_CONTEXT = compile_keywords(["инн"])
-INN_ORG_NEGATIVE = compile_keywords(
-    [
-        "организации",
-        "ооо",
-        "оао",
-        "зао",
-        "пао",
-        "ао",
-        "юр. лица",
-        "юридического лица",
-        "компании",
-        "предприятия",
-        "кпп",
-        "банка",
-    ]
-)
 CVV_CONTEXT = compile_keywords(
     [
         "cvv",
@@ -90,6 +80,19 @@ CVV_CONTEXT = compile_keywords(
     ]
 )
 PIN_CONTEXT = compile_keywords(["пин", "pin", "пинкод", "pin code"])
+EMAIL_ORG_CONTEXT = compile_keywords(
+    [
+        "отдел",
+        "компании",
+        "организации",
+        "публичная",
+        "общая",
+        "служебная",
+        "поддержки",
+        "банка",
+        "горячей линии",
+    ]
+)
 
 
 def _phone_rules() -> Sequence[PatternRule]:
@@ -163,25 +166,13 @@ def _inn_rules() -> Sequence[PatternRule]:
     return (
         PatternRule(
             "INN",
-            INN_RUN_12_RE,
+            INN_RUN_RE,
             0.2,
             validator=inn_valid,
             validator_bonus=0.25,
             context=INN_CONTEXT,
             context_bonus=0.45,
             context_window=30,
-        ),
-        PatternRule(
-            "INN",
-            INN_RUN_10_RE,
-            0.2,
-            validator=inn_valid,
-            validator_bonus=0.25,
-            context=INN_CONTEXT,
-            context_bonus=0.45,
-            context_window=30,
-            negative=INN_ORG_NEGATIVE,
-            negative_penalty=0.6,
         ),
         PatternRule(
             "INN",
@@ -195,7 +186,21 @@ def _inn_rules() -> Sequence[PatternRule]:
     )
 
 
-def _cvv_rules() -> Sequence[PatternRule]:
+def _email_rules() -> Sequence[PatternRule]:
+    return (
+        PatternRule("EMAIL", EMAIL_RE, 0.95),
+        PatternRule(
+            "EMAIL",
+            SERVICE_EMAIL_RE,
+            0.95,
+            negative=EMAIL_ORG_CONTEXT,
+            negative_penalty=0.5,
+            context_window=40,
+        ),
+    )
+
+
+def _cvv_pin_rules() -> Sequence[PatternRule]:
     return (
         PatternRule(
             "CVV",
@@ -206,11 +211,6 @@ def _cvv_rules() -> Sequence[PatternRule]:
             context_window=25,
             context_direction="before",
         ),
-    )
-
-
-def _pin_rules() -> Sequence[PatternRule]:
-    return (
         PatternRule(
             "PIN",
             PIN_RE,
@@ -232,12 +232,44 @@ def _pin_rules() -> Sequence[PatternRule]:
     )
 
 
+def _nearest_card_secret(doc: Document, start: int, end: int) -> str:
+    """CVV или PIN — по ключевому слову, стоящему ближе к числу."""
+    cvv_dist = find_keyword(doc, start, end, CVV_CONTEXT, 25, "before")
+    pin_dists = [
+        d
+        for d in (
+            find_keyword(doc, start, end, PIN_CONTEXT, 60, "before"),
+            find_keyword(doc, start, end, PIN_CONTEXT, 15, "after"),
+        )
+        if d is not None
+    ]
+    if cvv_dist is not None and (not pin_dists or cvv_dist <= min(pin_dists)):
+        return "CVV"
+    return "PIN"
+
+
+class CvvPinRecognizer(RegexRecognizer):
+    """CVV и PIN одним распознавателем: для числа, найденного обоими правилами,
+    остаётся тип ближайшего ключевого слова; из одинаковых — спан с наибольшим score."""
+
+    def find(self, doc: Document) -> Iterable[Span]:
+        by_pos: dict[tuple[int, int], list[Span]] = {}
+        for span in super().find(doc):
+            by_pos.setdefault((span.start, span.end), []).append(span)
+        resolved: list[Span] = []
+        for (start, end), group in by_pos.items():
+            if {s.pii_type for s in group} == {"CVV", "PIN"}:
+                winner = _nearest_card_secret(doc, start, end)
+                group = [s for s in group if s.pii_type == winner]
+            resolved.append(max(group, key=lambda s: s.score))
+        return resolved
+
+
 def recognizers() -> list[Recognizer]:
     return [
-        RegexRecognizer("email", [PatternRule("EMAIL", EMAIL_RE, 0.95)]),
+        RegexRecognizer("email", _email_rules()),
         RegexRecognizer("phone", _phone_rules()),
         RegexRecognizer("card", _card_rules()),
         RegexRecognizer("inn", _inn_rules()),
-        RegexRecognizer("cvv", _cvv_rules()),
-        RegexRecognizer("pin", _pin_rules()),
+        CvvPinRecognizer("cvv_pin", _cvv_pin_rules()),
     ]
