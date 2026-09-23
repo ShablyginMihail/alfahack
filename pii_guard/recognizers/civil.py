@@ -15,7 +15,7 @@ PLACE_MARKERS = r"(?:г\.|гор\.|город|с\.|село|пос\.|дер\.|о
 
 BIRTH_PLACE_MARKERS = r"(?:место рождения|м\.р\.|м/р|уроженец|уроженка|уроженца)"
 BIRTH_PLACE_RE = re.compile(
-    rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:-]?\s*(.+?)(?=;|\n|,\s*(?!{PLACE_MARKERS})|$)"
+    rf"(?<!\w){BIRTH_PLACE_MARKERS}\s*[:-]?\s*(.+?)(?=;|\n|\)|,\s*(?!{PLACE_MARKERS})|$)"
 )
 
 BORN_DATE = (

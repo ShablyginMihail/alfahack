@@ -70,6 +70,17 @@ def test_phone_international() -> None:
     assert _mask("+375 29 123-45-67") == "+375 ** ***-**-67"
 
 
+def test_phone_800_not_masked() -> None:
+    assert "PHONE" not in _types("8 800 100-00-00")
+    assert "PHONE" not in _types("+7 800 555-35-35")
+    assert "PHONE" not in _types("8-800-200-23-45")
+
+
+def test_phone_regular_still_masked() -> None:
+    assert "PHONE" in _types("+7 916 123-45-67")
+    assert "PHONE" in _types("8 (495) 123-45-67")
+
+
 def test_card_grouped_spaces() -> None:
     assert _mask("4276 1234 5678 9012") == "4276 **** **** 9012"
 

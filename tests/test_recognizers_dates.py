@@ -135,7 +135,7 @@ def test_no_context_old_date_masked_strict() -> None:
 
 def test_impossible_dates_not_masked() -> None:
     assert _mask("31.02.2020") == "31.02.2020"
-    assert _mask("12.13.2020") == "12.13.2020"
+    assert _mask("31.13.2020") == "31.13.2020"
 
 
 def test_version_and_time_not_masked() -> None:
@@ -229,3 +229,19 @@ def test_year_words_without_context_candidate() -> None:
     strict = Profile(name="s", strict=True)
     spans = _engine().analyze("тысяча девятьсот восемьдесят пятого года", strict)
     assert any(s.pii_type == "BIRTH_DATE" for s in spans)
+
+
+def test_birth_date_mm_dd_yyyy_slash() -> None:
+    assert "BIRTH_DATE" in _types("дата рождения: 07/14/1991")
+
+
+def test_birth_date_mm_dd_yyyy_dot() -> None:
+    assert "BIRTH_DATE" in _types("дата рождения 07.14.1991")
+
+
+def test_birth_date_yyyy_dd_mm() -> None:
+    assert "BIRTH_DATE" in _types("дата рождения 1985.28.03")
+
+
+def test_passport_issue_date_mm_dd_yyyy() -> None:
+    assert "PASSPORT_ISSUE_DATE" in _types("дата выдачи 02/28/2015")

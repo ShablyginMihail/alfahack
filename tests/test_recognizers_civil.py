@@ -134,3 +134,10 @@ def test_born_place_with_personal_context() -> None:
 def test_public_figure_birth_place_not_masked() -> None:
     assert "BIRTH_PLACE" not in _types("поэт Александр Пушкин родился в Москве")
     assert "BIRTH_PLACE" not in _types("Юрий Гагарин родился 9 марта 1934 года в Клушине")
+
+
+def test_birth_place_stops_at_closing_paren() -> None:
+    text = "уроженец г. Пермь) проживает по адресу: 614000, г. Пермь"
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "BIRTH_PLACE"]
+    assert spans
+    assert text[spans[0].start : spans[0].end] == "Пермь"

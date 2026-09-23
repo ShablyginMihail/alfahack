@@ -121,6 +121,10 @@ def _numeric_year(a_str: str, b_str: str, c_str: str) -> int | None:
         return c
     if _valid(c, b, a, len(a_str)):
         return a
+    if _valid(b, a, c, len(c_str)):
+        return c
+    if _valid(b, c, a, len(a_str)):
+        return a
     return None
 
 

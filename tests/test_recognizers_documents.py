@@ -264,6 +264,14 @@ def test_birth_certificate_not_passport() -> None:
     assert "PASSPORT" not in _types(BIRTH_SEPARATE)
 
 
+def test_birth_certificate_indirect_po() -> None:
+    assert "BIRTH_CERTIFICATE" in _types("по свидетельству о рождении II-МЮ № 523418")
+
+
+def test_birth_certificate_indirect_instrumental() -> None:
+    assert "BIRTH_CERTIFICATE" in _types("свидетельством о рождении I-АБ 123456")
+
+
 def test_residence_permit_combined() -> None:
     assert "RESIDENCE_PERMIT" in _types("вид на жительство 82 № 1234567")
     assert "RESIDENCE_PERMIT" in _types("внж 83 0012345")
