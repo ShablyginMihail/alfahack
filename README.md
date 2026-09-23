@@ -17,27 +17,27 @@
 
 ## Быстрый старт в Docker Compose
 
-1. Скопируй `.env.example` в `.env` и заполни ключи:
+1. Скопируйте `.env.example` в `.env` и заполни ключи:
 
    ```bash
    cp .env.example .env
    ```
 
-2. Сгенерируй ключи шифрования и HMAC (команда есть в `.env.example`):
+2. Сгенерируйте ключи шифрования и HMAC (команда есть в `.env.example`):
 
    ```bash
    python -c "import base64,secrets;print(base64.b64encode(secrets.token_bytes(32)).decode())"
    ```
 
-   Полученные значения впиши в `PII_ENCRYPTION_KEY` и `PII_HMAC_KEY`.
+   Полученные значения впишите в `PII_ENCRYPTION_KEY` и `PII_HMAC_KEY`.
 
-3. Запусти:
+3. Запустите:
 
    ```bash
    docker compose up -d --build
    ```
 
-4. Проверь живость и готовность:
+4. Проверьте живость и готовность:
 
    ```bash
    curl http://localhost:8000/health
