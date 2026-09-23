@@ -183,6 +183,13 @@ def test_issuer_cut_on_pin() -> None:
     assert text[spans[0].start : spans[0].end] == "оуфмс россии по г. москва"
 
 
+def test_issuer_many_repetitions_all_found() -> None:
+    phrase = "Паспорт выдан ОУФМС России по г. Москве 01.02.2010. "
+    text = phrase * 300
+    spans = [s for s in _engine().analyze(text, PARTIAL_PROFILE) if s.pii_type == "PASSPORT_ISSUER"]
+    assert len(spans) == 300
+
+
 def _span_at(text: str, value: str, pii_type: str) -> None:
     spans = _engine().analyze(text, PARTIAL_PROFILE)
     start = text.index(value)

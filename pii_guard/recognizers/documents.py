@@ -68,6 +68,8 @@ ISSUER_TERMINATORS = ("код подразделения", "к/п", "дата в
 ORGAN_PHRASE_RE = re.compile(rf"(?<!\w)({ORGAN_MARKERS}(?:\s+[а-яё0-9-]+){{1,6}})(?!\w)")
 ISSUER_PASSPORT_CONTEXT = compile_keywords([PASSPORT_WORD])
 _MAX_ISSUER = 150
+_ISSUER_SCAN = 2 * _MAX_ISSUER
+_ISSUER_FIELD_RE = re.compile(rf",\s*{FIELD_LABELS.pattern}")
 
 
 def _passport_rules() -> Sequence[PatternRule]:
@@ -208,27 +210,28 @@ def _foreign_rules() -> Sequence[PatternRule]:
 
 
 def _extract_issuer_value(norm: str, start: int) -> str:
+    limit = min(len(norm), start + _ISSUER_SCAN)
     candidates: list[int] = []
     for pattern in (ISSUER_DATE_RE, ISSUER_DIVISION_RE):
-        match = pattern.search(norm, start)
+        match = pattern.search(norm, start, limit)
         if match is not None:
             candidates.append(match.start())
     for terminator in ISSUER_TERMINATORS:
-        idx = norm.find(terminator, start)
+        idx = norm.find(terminator, start, limit)
         if idx != -1:
             candidates.append(idx)
     for sep in (";", "\n"):
-        idx = norm.find(sep, start)
+        idx = norm.find(sep, start, limit)
         if idx != -1:
             candidates.append(idx)
-    field_match = re.search(rf",\s*{FIELD_LABELS.pattern}", norm[start:])
+    field_match = _ISSUER_FIELD_RE.search(norm[start:limit])
     if field_match is not None:
         candidates.append(start + field_match.start())
-    period = cut_period(norm[start:])
-    if len(period) < len(norm) - start:
+    period = cut_period(norm[start:limit])
+    if len(period) < limit - start:
         candidates.append(start + len(period))
     if not candidates:
-        return norm[start:]
+        return norm[start:limit]
     return norm[start : min(candidates)]
 
 
