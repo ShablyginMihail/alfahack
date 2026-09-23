@@ -207,6 +207,31 @@ def _foreign_rules() -> Sequence[PatternRule]:
     )
 
 
+def _extract_issuer_value(norm: str, start: int) -> str:
+    candidates: list[int] = []
+    for pattern in (ISSUER_DATE_RE, ISSUER_DIVISION_RE):
+        match = pattern.search(norm, start)
+        if match is not None:
+            candidates.append(match.start())
+    for terminator in ISSUER_TERMINATORS:
+        idx = norm.find(terminator, start)
+        if idx != -1:
+            candidates.append(idx)
+    for sep in (";", "\n"):
+        idx = norm.find(sep, start)
+        if idx != -1:
+            candidates.append(idx)
+    field_match = re.search(rf",\s*{FIELD_LABELS.pattern}", norm[start:])
+    if field_match is not None:
+        candidates.append(start + field_match.start())
+    period = cut_period(norm[start:])
+    if len(period) < len(norm) - start:
+        candidates.append(start + len(period))
+    if not candidates:
+        return norm[start:]
+    return norm[start : min(candidates)]
+
+
 class PassportIssuerRecognizer(Recognizer):
     name = "passport_issuer"
     pii_types = frozenset({"PASSPORT_ISSUER"})
@@ -214,7 +239,7 @@ class PassportIssuerRecognizer(Recognizer):
     def find(self, doc: Document) -> Iterable[Span]:
         spans: list[Span] = []
         for match in ISSUER_RE.finditer(doc.norm):
-            value = self._extract_value(doc.norm, match.end())
+            value = _extract_issuer_value(doc.norm, match.end())
             if not value or not self._has_organ_marker(value):
                 continue
             value = value.rstrip(", \t\n")[:_MAX_ISSUER]
@@ -231,31 +256,6 @@ class PassportIssuerRecognizer(Recognizer):
                 continue
             spans.append(Span(match.start(1), match.end(1), "PASSPORT_ISSUER", 0.75, self.name))
         return spans
-
-    @staticmethod
-    def _extract_value(norm: str, start: int) -> str:
-        candidates: list[int] = []
-        for pattern in (ISSUER_DATE_RE, ISSUER_DIVISION_RE):
-            match = pattern.search(norm, start)
-            if match is not None:
-                candidates.append(match.start())
-        for terminator in ISSUER_TERMINATORS:
-            idx = norm.find(terminator, start)
-            if idx != -1:
-                candidates.append(idx)
-        for sep in (";", "\n"):
-            idx = norm.find(sep, start)
-            if idx != -1:
-                candidates.append(idx)
-        field_match = re.search(rf",\s*{FIELD_LABELS.pattern}", norm[start:])
-        if field_match is not None:
-            candidates.append(start + field_match.start())
-        period = cut_period(norm[start:])
-        if len(period) < len(norm) - start:
-            candidates.append(start + len(period))
-        if not candidates:
-            return norm[start:]
-        return norm[start : min(candidates)]
 
     @staticmethod
     def _has_organ_marker(value: str) -> bool:
