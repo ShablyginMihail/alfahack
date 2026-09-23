@@ -97,7 +97,7 @@ PASSPORT_COMBINED_CONTEXT = compile_keywords(
 )
 PASSPORT_WORD_CONTEXT = compile_keywords([PASSPORT_WORD])
 PASSPORT_NUMBER_WORDS_RE = re.compile(
-    r"(?<!\w)номер\s*(?::\s*)?(?:(?:[а-яё]+\s+){0,2})[:.]?\s*(\d{6})(?!\d)"
+    r"(?<!\w)номер\s*(?::\s*)?(?:(?:был|была|было|мой|паспорта|его|ее)\s+){0,2}[:.-]?\s*(\d{6})(?!\d)"
 )
 DIVISION_CONTEXT = compile_keywords(
     ["код подразделения", "подразделени", "код подр", "к/п", "к.п.", "кп"]
