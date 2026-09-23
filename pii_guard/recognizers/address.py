@@ -72,6 +72,8 @@ ENTRANCE_AFTER_RE = re.compile(r"(?<!\w)(\d+)(?:-?й)?\s*(?:подъезд|по�
 FLOOR_RE = re.compile(r"(?<!\w)(?:этаж|эт\.|эт)\s*[:.]?\s*(\d+)(?!\w)")
 FLOOR_AFTER_RE = re.compile(r"(?<!\w)(\d+)(?:-?й)?\s*(?:этаж|эт)(?!\w)")
 
+_STREET_BEFORE_TAIL_RE = re.compile(r"([а-яё]+(?:-[а-яё]+)*)\s+(\d+(?:[/-]\d+)?[а-яё]?)[\s,]+$")
+
 WORD_RE = re.compile(r"[а-яё]+(?:-[а-яё]+)*")
 
 # подъезд и этаж — адрес только в цепочке с другими частями адреса
@@ -372,10 +374,7 @@ class AddressRecognizer(Recognizer):
             if comp.part not in {"apartment", "house", "entrance"}:
                 continue
             before = doc.norm[max(0, comp.full_start - 40) : comp.full_start]
-            match = re.search(
-                r"([а-яё]+(?:-[а-яё]+)*)\s+(\d+(?:[/-]\d+)?[а-яё]?)(?:\s*,\s*|\s+)$",
-                before,
-            )
+            match = _STREET_BEFORE_TAIL_RE.search(before)
             if match is None:
                 continue
             word = match.group(1)
